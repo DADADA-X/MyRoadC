@@ -102,7 +102,7 @@ class LinkNet(BaseModel):
 class MTLLinkNet(BaseModel):
     def __init__(self, heads, groups=1, width_per_group=64, replace_stride_with_dilation=None):
         super(MTLLinkNet, self).__init__()
-        block = BasicBlock
+        block = SCBasicBlock
         layers = [3, 4, 6, 3]
         self.inplanes = 64
         self.heads = eval(heads)
