@@ -1,0 +1,17 @@
+__pycache__/
+.idea/
+.ipynb_checkpoints/
+dataset/
+saved/
+output/
+config/
+.DS_Store
+MyRoad.xmind
+datasets/
+checkpoints/
+pretrained/
+checkpoint*
+utils/plt_log.py
+
+README.md
+requirements.txt
