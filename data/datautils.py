@@ -4,6 +4,52 @@ import numpy as np
 from pathlib import Path
 
 
+
+
+class Jitter_HSV:
+    def __init__(self, u=0):
+        self.u = u
+
+    def get_params(self, hue_shift_limit=(-30, 30), sat_shift_limit=(-5, 5), val_shift_limit=(-15, 15)):
+        return {'hue_shift': np.random.uniform(hue_shift_limit[0], hue_shift_limit[1]),
+                'sat_shift': np.random.uniform(sat_shift_limit[0], sat_shift_limit[1]),
+                'val_shift': np.random.uniform(val_shift_limit[0], val_shift_limit[1])}
+
+    def fix_shift_values(self, img, *args):
+        """
+        shift values are normally specified in uint, but if your data is float - you need to remap values
+        """
+        if np.ceil(img.max()) == 1:
+            return list(map(lambda x: x / 255, args))
+        return args
+
+    def shift_hsv(self, img, hue_shift, sat_shift, val_shift):
+        dtype = img.dtype
+        maxval = np.max(img)
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV).astype(np.int32)
+        h, s, v = cv2.split(img)
+        h = cv2.add(h, hue_shift)
+        h = np.where(h < 0, maxval - h, h)
+        h = np.where(h > maxval, h - maxval, h)
+        h = h.astype(dtype)
+        s = clip(cv2.add(s, sat_shift), dtype, maxval)
+        v = clip(cv2.add(v, val_shift), dtype, maxval)
+        img = cv2.merge((h, s, v)).astype(dtype)
+        img = cv2.cvtColor(img, cv2.COLOR_HSV2RGB)
+        return img
+
+    def __call__(self, sample):
+        if np.random.random() < self.u:
+            params = self.get_params()
+            for k in sample.keys():
+                if k == 'trace':
+                    hue_shift, sat_shift, val_shift = self.fix_shift_values(sample[k], *params.values())
+                    sample[k] = self.shift_hsv(sample[k], hue_shift, sat_shift, val_shift)
+                else:
+                    continue
+        return sample
+
+
 class Rescale:
     def __init__(self, output_size):
         assert isinstance(output_size, (int, tuple))
@@ -66,7 +112,7 @@ class RandomCrop:
         for k in sample.keys():
             if k == 'image_name':
                 continue
-            elif k == 'mask_4' or k == 'line_4':
+            elif '_4' in k:
                 sample[k] = sample[k][top_4: top_4 + new_h_4,
                 left_4: left_4 + new_w_4]
             else:
@@ -149,3 +195,7 @@ def get_fname_list(p, suffix='*.tif'):
                              f" path.{p} is invalid.")
     else:
         raise ValueError("{} is not a string or list.".format(p))
+
+
+def clip(img, dtype, maxval):
+    return np.clip(img, 0, maxval).astype(dtype)

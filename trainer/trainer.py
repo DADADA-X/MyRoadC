@@ -219,6 +219,245 @@ class MTLTrainer(BaseTrainer):
         return base.format(current, total, 100.0 * current / total)
 
 
+class HGSegmentTrainer(BaseTrainer):
+    def __init__(self, model, optimizer, config, data_loader, valid_data_loader=None, lr_scheduler=None):
+        super(HGSegmentTrainer, self).__init__(model, optimizer, config)
+        self.data_loader = data_loader
+        self.len_epoch = len(self.data_loader)
+        self.valid_data_loader = valid_data_loader
+        self.do_validation = self.valid_data_loader is not None
+        self.lr_scheduler = lr_scheduler
+        self.log_step = 1
+        self.criterion = soft_iou_loss
+        self.metric_ftns_seg = [rIoU]
+        self.train_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns_seg],
+                                           writer=self.writer)
+        self.valid_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns_seg],
+                                           writer=self.writer)
+
+    def _train_epoch(self, epoch):
+        self.model.train()
+        self.train_metrics.reset()
+
+        for batch_idx, data in enumerate(self.data_loader):
+            step = (epoch - 1) * self.len_epoch + batch_idx
+            image_name, image, mask, mask_4 = data.values()
+            image = image.to(self.device)
+            mask = mask.to(self.device)
+            mask_4 = mask_4.to(self.device)
+
+            self.optimizer.zero_grad()
+            outputs, finalout = self.model(image)
+
+            loss = self.criterion(finalout, mask)
+            for stack, output in enumerate(outputs):
+                loss += self.criterion(output, mask_4)
+            loss.backward()
+            self.optimizer.step()
+
+            self.writer.set_step(step)
+            self.train_metrics.update('loss', loss.item())
+            for met in self.metric_ftns_seg:
+                self.train_metrics.update(met.__name__, met(finalout, mask))
+
+            if batch_idx % self.log_step == 0:
+                self.logger.info('Train Epoch: {} {} Loss: {:.6f}'.format(
+                    epoch,
+                    self._progress(batch_idx, self.data_loader),
+                    loss.item()))
+
+        log = self.train_metrics.result()
+
+        if self.do_validation:
+            val_log = self._valid_epoch(epoch)
+            log.update(**{'val_' + k: v for k, v in val_log.items()})
+
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.step()
+        return log
+
+    def _valid_epoch(self, epoch):
+        self.model.eval()
+        self.valid_metrics.reset()
+        with torch.no_grad():
+            for batch_idx, data in enumerate(self.valid_data_loader):
+                step = (epoch - 1) * len(self.valid_data_loader) + batch_idx
+                image_name, image, mask, mask_4 = data.values()
+                image = image.to(self.device)
+                mask = mask.to(self.device)
+                mask_4 = mask_4.to(self.device)
+
+                outputs, finalout = self.model(image)
+                loss = self.criterion(finalout, mask)
+                for stack, output in enumerate(outputs):
+                    loss += self.criterion(output, mask_4)
+
+                self.writer.set_step(step, 'valid')
+                self.valid_metrics.update('loss', loss.item())
+                for met in self.metric_ftns_seg:
+                    self.valid_metrics.update(met.__name__, met(finalout, mask))
+
+                self.logger.info('Valid Epoch: {} {} Loss: {:.6f}'.format(
+                    epoch,
+                    self._progress(batch_idx, self.valid_data_loader),
+                    loss.item()))
+
+        for name, p in self.model.named_parameters():
+            self.writer.add_histogram(name, p, bins='auto')
+        return self.valid_metrics.result()
+
+    def _progress(self, batch_idx, data_loader):
+        base = '[{:2d}/{:2d} ({:2.0f}%)]'
+        current = batch_idx * data_loader.batch_size
+        total = data_loader.n_samples
+        return base.format(current, total, 100.0 * current / total)
+
+
+class HGMTLTrainer(BaseTrainer):
+    def __init__(self, model, optimizer, config, data_loader, valid_data_loader=None, lr_scheduler=None):
+        super(HGMTLTrainer, self).__init__(model, optimizer, config)
+        self.data_loader = data_loader
+        self.len_epoch = len(self.data_loader)
+        self.valid_data_loader = valid_data_loader
+        self.do_validation = self.valid_data_loader is not None
+        self.lr_scheduler = lr_scheduler
+
+        self.log_step = 1
+        self.criterion_mask = soft_iou_loss
+        self.criterion_conn = balanced_ce_loss
+
+        self.metric_ftns_mask = [rIoU]
+        self.metric_ftns_conn = [mIoU]
+
+        self.train_metrics_mask = MetricTracker('loss_mask', *[m.__name__ + '_mask' for m in self.metric_ftns_mask],
+                                                writer=self.writer)
+        self.train_metrics_conn = MetricTracker('loss_conn', *[m.__name__ + '_conn' for m in self.metric_ftns_conn],
+                                                writer=self.writer)
+
+        self.valid_metrics_mask = MetricTracker('loss_mask', *[m.__name__ + '_mask' for m in self.metric_ftns_mask],
+                                                writer=self.writer)
+        self.valid_metrics_conn = MetricTracker('loss_conn', *[m.__name__ + '_conn' for m in self.metric_ftns_conn],
+                                                writer=self.writer)
+
+    def _train_epoch(self, epoch):
+        self.model.train()
+        self.train_metrics_mask.reset()
+        self.valid_metrics_conn.reset()
+
+        for batch_idx, data in enumerate(self.data_loader):
+            step = (epoch - 1) * self.len_epoch + batch_idx
+            image_name, image, mask, mask_4, conn, conn_4 = data.values()
+            image = image.to(self.device)
+            mask = mask.to(self.device)
+            mask_4 = mask_4.to(self.device)
+            conn = conn.to(self.device)
+            conn_4 = conn_4.to(self.device)
+
+            self.optimizer.zero_grad()
+            output1, output2 = self.model(image)
+
+            loss_mask = self.criterion_mask(output1[-1], mask)
+            for output in output1[:-1]:
+                loss_mask += self.criterion_mask(output, mask_4)
+
+            loss_conn = self.criterion_conn(output2[-1], conn)
+            for output in output2[:-1]:
+                loss_conn += self.criterion_conn(output, conn_4)
+
+            loss_total = loss_mask + loss_conn
+            loss_total.backward()
+            self.optimizer.step()
+
+            self.writer.set_step(step)
+
+            self.train_metrics_mask.update('loss_mask', loss_mask.item())
+            self.train_metrics_conn.update('loss_conn', loss_conn.item())
+
+            for met in self.metric_ftns_mask:
+                self.train_metrics_mask.update(met.__name__ + '_mask', met(output1[-1], mask))
+            for met in self.metric_ftns_conn:
+                self.train_metrics_conn.update(met.__name__ + '_conn', met(output2[-1], conn))
+
+            if batch_idx % self.log_step == 0:
+                self.logger.info('Train Epoch: {} {} Total_Loss: {:.6f} Loss_Mask: {:.6f} '
+                                 'Loss_Conn: {:.6f}'.format(
+                    epoch,
+                    self._progress(batch_idx, self.data_loader),
+                    loss_total.item(),
+                    loss_mask.item(),
+                    loss_conn.item()))
+
+        log_mask = self.train_metrics_mask.result()  # average
+        log_conn = self.train_metrics_conn.result()
+
+        if self.do_validation:
+            val_log = self._valid_epoch(epoch)
+            log_mask.update(**{'val_' + k: v for k, v in val_log.items() if 'mask' in k})
+            log_conn.update(**{'val_' + k: v for k, v in val_log.items() if 'conn' in k})
+
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.step()
+
+        return {**log_mask, **log_conn}
+
+    def _valid_epoch(self, epoch):
+        self.model.eval()
+        self.valid_metrics_mask.reset()
+        self.valid_metrics_conn.reset()
+        with torch.no_grad():
+            for batch_idx, data in enumerate(self.valid_data_loader):
+                step = (epoch - 1) * len(self.valid_data_loader) + batch_idx
+                image_name, image, mask, mask_4, conn, conn_4 = data.values()
+                image = image.to(self.device)
+                mask = mask.to(self.device)
+                mask_4 = mask_4.to(self.device)
+                conn = conn.to(self.device)
+                conn_4 = conn_4.to(self.device)
+
+                output1, output2 = self.model(image)
+
+                loss_mask = self.criterion_mask(output1[-1], mask)
+                for output in output1[:-1]:
+                    loss_mask += self.criterion_mask(output, mask_4)
+
+                loss_conn = self.criterion_conn(output2[-1], conn)
+                for output in output2[:-1]:
+                    loss_conn += self.criterion_conn(output, conn_4)
+
+                loss_total = loss_mask + loss_conn
+
+                self.writer.set_step(step, 'valid')
+                self.valid_metrics_mask.update('loss_mask', loss_mask.item())
+                self.valid_metrics_conn.update('loss_conn', loss_conn.item())
+
+                for met in self.metric_ftns_mask:
+                    self.valid_metrics_mask.update(met.__name__ + '_mask', met(output1[-1], mask))
+                for met in self.metric_ftns_conn:
+                    self.valid_metrics_conn.update(met.__name__ + '_conn', met(output2[-1], conn))
+
+                self.logger.info('Valid Epoch: {} {} Total_Loss: {:.6f} Loss_Mask: {:.6f} '
+                                 'Loss_Conn: {:.6f}'.format(
+                    epoch,
+                    self._progress(batch_idx, self.valid_data_loader),
+                    loss_total.item(),
+                    loss_mask.item(),
+                    loss_conn.item()))
+
+        for name, p in self.model.named_parameters():
+            self.writer.add_histogram(name, p, bins='auto')
+
+        valid_metrics = {**self.valid_metrics_mask.result(), **self.valid_metrics_conn.result()}
+
+        return valid_metrics
+
+    def _progress(self, batch_idx, data_loader):
+        base = '[{:2d}/{:2d} ({:2.0f}%)]'
+        current = batch_idx * data_loader.batch_size
+        total = data_loader.n_samples
+        return base.format(current, total, 100.0 * current / total)
+
+
+# todo test
 class MTLTrainer3(BaseTrainer):
     def __init__(self, model, optimizer, config, data_loader, valid_data_loader=None, lr_scheduler=None):
         super(MTLTrainer3, self).__init__(model, optimizer, config)
@@ -230,8 +469,8 @@ class MTLTrainer3(BaseTrainer):
 
         self.log_step = 1
         self.criterion_mask = soft_iou_loss
-        self.criterion_line = mse_loss
-        self.criterion_point = mse_loss
+        self.criterion_line = focal_loss
+        self.criterion_point = focal_loss
 
         self.metric_ftns_mask = [rIoU]
         self.metric_ftns_line = [MSE]
@@ -269,8 +508,8 @@ class MTLTrainer3(BaseTrainer):
             output1, output2, output3 = self.model(image)
 
             loss_mask = self.criterion_mask(output1, mask)
-            loss_line = self.criterion_line(output2, line)
-            loss_point = self.criterion_point(output3, point)
+            loss_line = self.criterion_line(output2, line, epoch)
+            loss_point = self.criterion_point(output3, point, epoch)
             loss_total = loss_mask + loss_line + loss_point
 
             loss_total.backward()
@@ -331,8 +570,8 @@ class MTLTrainer3(BaseTrainer):
                 output1, output2, output3 = self.model(image)
 
                 loss_mask = self.criterion_mask(output1, mask)
-                loss_line = self.criterion_line(output2, line)
-                loss_point = self.criterion_point(output3, point)
+                loss_line = self.criterion_line(output2, line, epoch)
+                loss_point = self.criterion_point(output3, point, epoch)
                 loss_total = loss_mask + loss_line + loss_point
 
                 self.writer.set_step(step, 'valid')
