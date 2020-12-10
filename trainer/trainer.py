@@ -469,8 +469,8 @@ class MTLTrainer3(BaseTrainer):
 
         self.log_step = 1
         self.criterion_mask = soft_iou_loss
-        self.criterion_line = focal_loss
-        self.criterion_point = focal_loss
+        self.criterion_line = mse_loss
+        self.criterion_point = mse_loss
 
         self.metric_ftns_mask = [rIoU]
         self.metric_ftns_line = [MSE]
@@ -508,8 +508,8 @@ class MTLTrainer3(BaseTrainer):
             output1, output2, output3 = self.model(image)
 
             loss_mask = self.criterion_mask(output1, mask)
-            loss_line = self.criterion_line(output2, line, epoch)
-            loss_point = self.criterion_point(output3, point, epoch)
+            loss_line = self.criterion_line(output2, line)
+            loss_point = self.criterion_point(output3, point)
             loss_total = loss_mask + loss_line + loss_point
 
             loss_total.backward()
@@ -570,8 +570,8 @@ class MTLTrainer3(BaseTrainer):
                 output1, output2, output3 = self.model(image)
 
                 loss_mask = self.criterion_mask(output1, mask)
-                loss_line = self.criterion_line(output2, line, epoch)
-                loss_point = self.criterion_point(output3, point, epoch)
+                loss_line = self.criterion_line(output2, line)
+                loss_point = self.criterion_point(output3, point)
                 loss_total = loss_mask + loss_line + loss_point
 
                 self.writer.set_step(step, 'valid')

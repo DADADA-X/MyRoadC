@@ -39,8 +39,9 @@ class SegmentEval(BaseEval):
                 for i in range(b):
                     predicted_prob_ = predicted_prob[i].squeeze().cpu().numpy() * 255
                     predicted_prob_ = np.asarray(predicted_prob_, dtype=np.uint8)
-
-                    cv2.imwrite(str(self.output_dir / (image_name[i] + '.png')), predicted_prob_)
+                    plt.imshow(predicted_prob_)
+                    plt.show()
+                    # cv2.imwrite(str(self.output_dir / (image_name[i] + '.png')), predicted_prob_)
 
                 loss = self.criterion(output, mask)
                 for i, metric in enumerate(self.metric_ftns):
@@ -91,6 +92,8 @@ class MTLEval(BaseEval):
                 # save smple images
                 prob_m = torch.argmax(output1, dim=1)
                 prob_c = torch.argmax(output2, dim=1)
+                plt.imshow(prob_m.cpu()[0])
+                plt.show()
                 for i in range(b):
                     prob_m_ = prob_m[i].squeeze().cpu().numpy() * 255
                     prob_m_ = np.asarray(prob_m_, dtype=np.uint8)
@@ -180,8 +183,10 @@ class HGMTLEval(BaseEval):
         self.total_metrics = torch.zeros(len(self.metric_ftns_mask))
 
         self.output_dir = output_dir
-        if not self.output_dir.exists():
-            self.output_dir.mkdir(parents=True, exist_ok=True)
+        for cat in ['mask', 'conn']:
+            output_dir_ = output_dir / cat
+            if not output_dir_.exists():
+                output_dir_.mkdir(parents=True, exist_ok=True)
 
     def test(self):
         self.model.eval()
@@ -197,29 +202,31 @@ class HGMTLEval(BaseEval):
 
                 output1, output2 = self.model(image)
 
-                loss_mask = self.criterion_mask(output1[-1], mask)
-                for output in output1[:-1]:
-                    # print(self.criterion_mask(output, mask_4))
-                    loss_mask += self.criterion_mask(output, mask_4)
+                # # save smple images
+                prob_m = torch.argmax(output1[-1], dim=1)
+                prob_c = torch.argmax(output2[-1], dim=1)
 
-                loss_conn = self.criterion_conn(output2[-1], conn)
-                for output in output2[:-1]:
-                    loss_conn += self.criterion_conn(output, conn_4)
-
-                # save smple images
-                prob_m = torch.argmax(output1[2], dim=1)
-                prob_c = torch.argmax(output2[2], dim=1)
-                for i in range(1):
-                    prob_m_ = prob_m[i].squeeze().cpu().numpy()
-                    from collections import Counter
-                    a.extend(Counter(prob_c.cpu().numpy().flatten()).keys())
-                    # plt.imshow(prob_c_)
-                    # plt.show(
-                    #
-                    # )
-                    # cv2.imwrite(str(self.output_dir / (image_name[i] + '.png')), predicted_prob_)
-                for i, metric in enumerate(self.metric_ftns_mask):
-                    self.total_metrics[i] += metric(output1[-1], mask) * 1
+                fig, ax = plt.subplots(1, 4)
+                ax[0].imshow(image.cpu().numpy()[0].transpose(1, 2, 0))
+                ax[0].axis('off')
+                ax[1].imshow(mask.cpu()[0][0], cmap='gray')
+                ax[1].axis('off')
+                ax[2].imshow(np.logical_not(prob_m.cpu().numpy()[0]), cmap='gray')
+                ax[2].axis('off')
+                ax[3].imshow(prob_c.cpu()[0], cmap='jet')
+                ax[3].axis('off')
+                plt.show()
+                # for i in range(1):
+                #     prob_m_ = prob_m[i].squeeze().cpu().numpy()*255
+                #     # plt.imshow(prob_m_)
+                #     # plt.show()
+                #     from collections import Counter
+                #     a.extend(Counter(prob_c.cpu().numpy().flatten()).keys())
+                #     cv2.imwrite(str(self.output_dir / "mask" / (image_name[i] + '.png')), prob_m_)
+                #     # cv2.imwrite(str(self.output_dir / (image_name[i] + '.png')), prob_m_)
+                #
+                # for i, metric in enumerate(self.metric_ftns_mask):
+                #     self.total_metrics[i] += metric(output1[-1], mask) * 1
 
         print(set(a))
         n_samples = len(self.data_loader.sampler)
@@ -269,19 +276,12 @@ class MTLEval3(BaseEval):
                 b, c, w, h = output1.shape
 
                 # save smple images
-                prob_m = torch.sigmoid(output1)
-                prob_c = torch.argmax(output2, dim=1)
+                prob_m = torch.argmax(output1, dim=1)
                 for i in range(b):
                     prob_m_ = prob_m[i].squeeze().cpu().numpy() * 255
                     prob_m_ = np.asarray(prob_m_, dtype=np.uint8)
 
-                    prob_c_ = prob_c[i].squeeze().cpu().numpy()
-                    # plt.imshow(prob_c_, cmap='gray')
-                    # plt.show()
-                    from collections import Counter
-                    a.extend(Counter(prob_c_.flatten()).keys())
-
-                    # cv2.imwrite(str(self.output_dir / "mask" / (image_name[i] + '.png')), prob_m_)
+                    cv2.imwrite(str(self.output_dir / "mask" / (image_name[i] + '.png')), prob_m_)
                     # cv2.imwrite(str(self.output_dir / "conn" / (image_name[i] + '.png')), prob_l_)
 
                 for i, metric in enumerate(self.metric_ftns_mask):
@@ -294,3 +294,43 @@ class MTLEval3(BaseEval):
             })
 
         self.logger.info(log)
+# todo just for test
+# class SegmentEval(BaseEval):
+#     def __init__(self, model, config, data_loader, output_dir):
+#         super(SegmentEval, self).__init__(model, config)
+#         self.data_loader = data_loader
+#
+#         self.criterion = soft_iou_loss
+#         self.metric_ftns = [rIoU]
+#
+#         self.total_metrics = torch.zeros(len(self.metric_ftns))
+#
+#         self.output_dir = output_dir
+#         if not self.output_dir.exists():
+#             self.output_dir.mkdir(parents=True, exist_ok=True)
+#
+#     def test(self):
+#         self.model.eval()
+#         e3_ = []
+#         with torch.no_grad():
+#             for i, data in enumerate(tqdm(self.data_loader)):
+#                 image_name, image, mask = data.values()
+#                 image = image.to(self.device)
+#                 mask = mask.to(self.device)
+#
+#                 if 'RGB-PanSharpen_AOI_2_Vegas_img20' in image_name:
+#                     print('lalala')
+#
+#                 output, e_ = self.model(image)
+#                 e1, e2, e3, e4 = e_
+#
+#                 # plt.imshow(torch.mean(e3, dim=1).cpu()[0])
+#                 # plt.axis('off')
+#                 # plt.savefig(str(self.output_dir / (image_name[0] + '.png')))
+#         n_samples = len(self.data_loader.sampler)
+#         log = {}
+#         log.update({
+#             met.__name__: self.total_metrics[i].item() / n_samples for i, met in enumerate(self.metric_ftns)
+#         })
+#
+#         self.logger.info(log)
