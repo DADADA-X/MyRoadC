@@ -1,9 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from base import BaseModel
 
-__all__ = ['StackHourglass', 'MHStackHourglass', 'MTLStackHourglass']
+from base import BaseModel
+from model.blocks import *
+
+__all__ = ['StackHourglass', 'MHStackHourglass', 'MBStackHourglass']
 
 
 class StackHourglass(BaseModel):
@@ -12,8 +14,7 @@ class StackHourglass(BaseModel):
         self.inplanes = 64  # keep updating
         self.num_feats = 128
         self.block = eval(block)
-        self.heads = heads
-        self.num_classes = sum(heads.values())
+        self.heads = eval(heads)
         self.num_stacks = num_stacks
 
         self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3)
@@ -31,10 +32,13 @@ class StackHourglass(BaseModel):
             hg.append(Hourglass(self.block, num_blocks, self.num_feats, depth))
             res.append(self._make_residual(self.block, self.num_feats, num_blocks))
             fc.append(self._make_fc(ch, ch))
-            score.append(MultitaskHead(self.heads, ch))
+            score.append(nn.Sequential(
+                nn.Conv2d(ch, ch // 4, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(ch // 4, self.heads[0], kernel_size=1)))
             if i < num_stacks - 1:
                 fc_.append(nn.Conv2d(ch, ch, kernel_size=1))
-                score_.append(nn.Conv2d(self.num_classes, ch, kernel_size=1))
+                score_.append(nn.Conv2d(self.heads[0], ch, kernel_size=1))
         self.hg = nn.ModuleList(hg)
         self.res = nn.ModuleList(res)
         self.fc = nn.ModuleList(fc)
@@ -42,23 +46,20 @@ class StackHourglass(BaseModel):
         self.fc_ = nn.ModuleList(fc_)
         self.score_ = nn.ModuleList(score_)
 
-        for head in self.heads:
-            num_classes = self.heads[head]
-            finalcls = nn.Sequential(
-                DecoderBlock(ch, 64),
-                nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1,  # TODO intermediate channel
-                                   output_padding=1),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(32, 32, kernel_size=3, padding=1),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.ConvTranspose2d(32, num_classes, kernel_size=2, stride=2)
-            )
-            self.__setattr__(head, finalcls)
+        self.finalcls = nn.Sequential(
+            DecoderBlock(ch, 64),
+            nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1,
+                               output_padding=1),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(32, 32, kernel_size=3, padding=1),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.ConvTranspose2d(32, self.heads[0], kernel_size=2, stride=2)
+        )
 
     def _make_residual(self, block, planes, blocks, stride=1):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
-            downsample = nn.Sequential(  # TODO dwonsample wo BN??
+            downsample = nn.Sequential(
                 nn.Conv2d(self.inplanes, planes * block.expansion,
                           kernel_size=1, stride=stride, bias=False),
                 nn.BatchNorm2d(planes * block.expansion)
@@ -102,14 +103,9 @@ class StackHourglass(BaseModel):
                 score_ = self.score_[i](score)
                 x = x + fc_ + score_
 
-        if len(self.heads) == 1:
-            f_out = self.__getattr__(list(self.heads.keys())[0])(y)
-        else:
-            f_out = []
-            for head in self.heads:
-                f_out.append(self.__getattr__(head)(y))
+        out.append(self.finalcls(y))
 
-        return out[::-1], f_out  # outputs
+        return out
 
 
 class MHStackHourglass(BaseModel):
@@ -169,7 +165,7 @@ class MHStackHourglass(BaseModel):
     def _make_residual(self, block, planes, blocks, stride=1):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
-            downsample = nn.Sequential(  # TODO dwonsample wo BN??
+            downsample = nn.Sequential(
                 nn.Conv2d(self.inplanes, planes * block.expansion,
                           kernel_size=1, stride=stride, bias=False),
                 nn.BatchNorm2d(planes * block.expansion)
@@ -233,195 +229,9 @@ class MHStackHourglass(BaseModel):
         return out_1, out_2
 
 
-# ======================================================== #
-#                        Utilities                         #
-# ======================================================== #
-
-
-def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
-    """3x3 convolution with padding"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=dilation, groups=groups, bias=False, dilation=dilation)
-
-
-def conv1x1(in_planes, out_planes, stride=1):
-    """1x1 convolution"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
-
-
-class Hourglass(nn.Module):
-    def __init__(self, block, num_blocks, planes, depth):
-        super(Hourglass, self).__init__()
-        self.depth = depth  # hourglass order
-        self.block = block
-        self.hg = self._make_hour_glass(block, num_blocks, planes, depth)
-
-    def _make_residual(self, block, num_blocks, planes):
-        layers = []
-        for i in range(0, num_blocks):
-            layers.append(block(planes * block.expansion, planes))
-        return nn.Sequential(*layers)
-
-    def _make_hour_glass(self, block, num_blocks, planes, depth):
-        hg = []
-        for i in range(depth):
-            res = []
-            for j in range(3):
-                res.append(self._make_residual(block, num_blocks, planes))
-            if i == 0:
-                res.append(self._make_residual(block, num_blocks, planes))
-            hg.append(nn.ModuleList(res))
-        return nn.ModuleList(hg)
-
-    def _hour_glass_forward(self, n, x):
-        up1 = x  # n order, starting from the outermost todo cancel up1 (self.hg[n - 1][0](x))
-        h, w = up1.shape[2:]
-        low1 = F.max_pool2d(x, 2, stride=2, padding=1)  # todo add padding
-        low1 = self.hg[n - 1][1](low1)
-
-        if n > 1:
-            low2 = self._hour_glass_forward(n - 1, low1)
-        else:
-            low2 = self.hg[n - 1][3](low1)
-        low3 = self.hg[n - 1][2](low2)
-        up2 = F.interpolate(low3, scale_factor=2)[:, :, :h, :w]  # todo
-        out = up1 + up2
-        return out
-
-    def forward(self, x):
-        return self._hour_glass_forward(self.depth, x)
-
-
-class BasicBlock(nn.Module):
-    expansion = 1
-
-    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, norm_layer=None):
-        super(BasicBlock, self).__init__()
-        if norm_layer is None:
-            norm_layer = nn.BatchNorm2d
-        if groups != 1 or base_width != 64:
-            raise ValueError('BasicBlock only supports groups=1 and base_width=64')
-        if dilation > 1:
-            raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
-        # Both self.conv1 and self.downsample layers downsample the input when stride != 1
-        self.conv1 = conv3x3(inplanes, planes, stride)
-        self.bn1 = norm_layer(planes)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv2 = conv3x3(planes, planes)
-        self.bn2 = norm_layer(planes)
-
-        self.downsample = downsample
-        self.stride = stride
-
-    def forward(self, x):
-        identity = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-
-        if self.downsample is not None:
-            identity = self.downsample(x)
-
-        out += identity
-        out = self.relu(out)
-
-        return out
-
-
-class GABasicBlock(nn.Module):
-    expansion = 1
-
-    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, norm_layer=None):
-        super(GABasicBlock, self).__init__()
-        if norm_layer is None:
-            norm_layer = nn.BatchNorm2d
-        if groups != 1 or base_width != 64:
-            raise ValueError('BasicBlock only supports groups=1 and base_width=64')
-        if dilation > 1:
-            raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
-        # Both self.conv1 and self.downsample layers downsample the input when stride != 1
-        self.conv1 = conv3x3(inplanes, planes, stride)
-        self.bn1 = norm_layer(planes)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv2 = conv3x3(planes, planes)
-        self.bn2 = norm_layer(planes)
-        self.ga = GALayer(planes)
-
-        self.downsample = downsample
-        self.stride = stride
-
-    def forward(self, x):
-        identity = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.ga(out)
-
-        if self.downsample is not None:
-            identity = self.downsample(x)
-
-        out += identity
-        out = self.relu(out)
-
-        return out
-
-
-class DecoderBlock(nn.Module):
-
-    def __init__(self, inplanes, planes, stride=1):
-        super(DecoderBlock, self).__init__()
-        self.deconv = nn.Sequential(
-            nn.Conv2d(inplanes, inplanes // 4, kernel_size=1, bias=False),
-            nn.BatchNorm2d(inplanes // 4),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(inplanes // 4, inplanes // 4, kernel_size=3, stride=stride, padding=1,
-                               output_padding=stride - 1, bias=False),
-            nn.BatchNorm2d(inplanes // 4),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(inplanes // 4, planes, kernel_size=1, bias=False),
-            nn.BatchNorm2d(planes),
-            nn.ReLU(inplace=True),
-        )
-
-    def forward(self, x):
-        out = self.deconv(x)
-        return out
-
-
-class GALayer(nn.Module):
-    def __init__(self, channel, ratio=16):
-        super(GALayer, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.ca = nn.Sequential(
-            nn.Conv2d(channel, channel // ratio, kernel_size=1, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(channel // ratio, channel, kernel_size=1, bias=False),
-            nn.Sigmoid())
-
-    def forward(self, x):
-        u = self.ca(self.avg_pool(x))
-        ca_out = x * u
-
-        v = torch.mean(ca_out, dim=1).unsqueeze(1).sigmoid()
-        sa_out = ca_out * v
-
-        return sa_out
-
-
-# todo test
-class MTLStackHourglass(BaseModel):
+class MBStackHourglass(BaseModel):
     def __init__(self, block, heads, depth, num_stacks, num_blocks):
-        super(MTLStackHourglass, self).__init__()
+        super(MBStackHourglass, self).__init__()
         self.inplanes = 64  # keep updating
         self.num_feats = 128
         self.block = eval(block)
@@ -442,7 +252,7 @@ class MTLStackHourglass(BaseModel):
         res_1, fc_1, score_1, fc_1_, score_1_ = [], [], [], [], []
         res_2, fc_2, score_2, fc_2_, score_2_ = [], [], [], [], []
         for i in range(self.num_stacks):  # number of stacked-hourglass
-            hg.append(MTLHourglass(self.block, num_blocks, self.num_feats, depth))
+            hg.append(MBHourglass(self.block, num_blocks, self.num_feats, depth))
 
             res_1.append(self._make_residual(self.block, self.num_feats, num_blocks))
             res_2.append(self._make_residual(self.block, self.num_feats, num_blocks))
@@ -485,7 +295,7 @@ class MTLStackHourglass(BaseModel):
     def _make_residual(self, block, planes, blocks, stride=1):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
-            downsample = nn.Sequential(  # TODO dwonsample wo BN??
+            downsample = nn.Sequential(
                 nn.Conv2d(self.inplanes, planes * block.expansion,
                           kernel_size=1, stride=stride, bias=False),
                 nn.BatchNorm2d(planes * block.expansion)
@@ -552,10 +362,54 @@ class MTLStackHourglass(BaseModel):
         out_2.append(self.finalcls_2(y2))
 
         return out_1, out_2
-# todo test
-class MTLHourglass(nn.Module):
+
+
+class Hourglass(nn.Module):
     def __init__(self, block, num_blocks, planes, depth):
-        super(MTLHourglass, self).__init__()
+        super(Hourglass, self).__init__()
+        self.depth = depth  # hourglass order
+        self.block = block
+        self.hg = self._make_hour_glass(block, num_blocks, planes, depth)
+
+    def _make_residual(self, block, num_blocks, planes):
+        layers = []
+        for i in range(0, num_blocks):
+            layers.append(block(planes * block.expansion, planes))
+        return nn.Sequential(*layers)
+
+    def _make_hour_glass(self, block, num_blocks, planes, depth):
+        hg = []
+        for i in range(depth):
+            res = []
+            for j in range(3):
+                res.append(self._make_residual(block, num_blocks, planes))
+            if i == 0:
+                res.append(self._make_residual(block, num_blocks, planes))
+            hg.append(nn.ModuleList(res))
+        return nn.ModuleList(hg)
+
+    def _hour_glass_forward(self, n, x):
+        up1 = x  # n order, starting from the outermost todo cancel up1 (self.hg[n - 1][0](x))
+        h, w = up1.shape[2:]
+        low1 = F.max_pool2d(x, 2, stride=2)
+        low1 = self.hg[n - 1][1](low1)
+
+        if n > 1:
+            low2 = self._hour_glass_forward(n - 1, low1)
+        else:
+            low2 = self.hg[n - 1][3](low1)
+        low3 = self.hg[n - 1][2](low2)
+        up2 = F.interpolate(low3, scale_factor=2)
+        out = up1 + up2
+        return out
+
+    def forward(self, x):
+        return self._hour_glass_forward(self.depth, x)
+
+
+class MBHourglass(nn.Module):
+    def __init__(self, block, num_blocks, planes, depth):
+        super(MBHourglass, self).__init__()
         self.depth = depth  # hourglass order
         self.block = block
         self.hg = self._make_hour_glass(block, num_blocks, planes, depth)
@@ -579,7 +433,7 @@ class MTLHourglass(nn.Module):
         return nn.ModuleList(hg)
 
     def _hour_glass_forward(self, n, x):
-        up1 = self.hg[n - 1][0](x)  # n order, starting from the outermost
+        up1 = x  # n order, starting from the outermost
         low1 = F.max_pool2d(x, 2, stride=2)
         low1 = self.hg[n - 1][1](low1)
 
@@ -598,28 +452,12 @@ class MTLHourglass(nn.Module):
 
     def forward(self, x):
         return self._hour_glass_forward(self.depth, x)
-# todo test
-class MultitaskHead(nn.Module):
-    def __init__(self, heads, inplanes):
-        super(MultitaskHead, self).__init__()
-        self.heads = heads
-        heads_conv = []
-        for head in self.heads:
-            num_classes = self.heads[head]
-            heads_conv.append(
-                nn.Sequential(
-                    nn.Conv2d(inplanes, inplanes // 4, kernel_size=3, padding=1),  # TODO head's intermediate chennel
-                    nn.ReLU(inplace=True),
-                    nn.Conv2d(inplanes // 4, num_classes, kernel_size=1)))
-        self.heads_conv = nn.ModuleList(heads_conv)
-
-    def forward(self, x):
-        return torch.cat([head(x) for head in self.heads_conv], dim=1)
 
 
 if __name__ == '__main__':
-    model = MHStackHourglass("BasicBlock", "[2, 5]", depth=3, num_stacks=2, num_blocks=3)
+    model = MBStackHourglass("BasicBlock", "[2, 5]", depth=3, num_stacks=2, num_blocks=3)
     input = torch.randn(1, 3, 512, 512)
-    out = model(input)
+    out1, out2 = model(input)
     print(model)
-    print(out[1][2].shape)
+    for i in range(len(out1)):
+        print(out1[i].shape)

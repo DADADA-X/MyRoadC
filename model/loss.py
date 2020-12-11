@@ -50,39 +50,29 @@ def mse_loss(pred, gt):
     return criterion(pred_, gt)
 
 
-def focal_loss(pred, gt, step):
-    pos_inds = gt.eq(1)
-    neg_inds = gt.lt(1)
+def dice_bce_loss(pred, gt):
+    a = bce_loss(pred, gt)
+    b = soft_dice_coeff(pred, gt)
+    return 0.8*a + 0.2*b
 
-    num_pos = pos_inds.float().sum()
-    num_neg = neg_inds.float().sum()
 
-    annealing_step = 20  # TODO annealing function.
+def bce_loss(pred, gt):
+    pred_ = pred.sigmoid()
+    criterion = nn.BCELoss()
+    return criterion(pred_.contiguous().view(-1), gt.contiguous().view(-1))
 
-    zeta = 0.5 * (1. + np.cos(np.pi * step / annealing_step)) if step <= annealing_step else 0. # Cosine
-    # zeta = np.maximum(1 - step / annealing_step, 0)  # Linear
 
-    neg_weights = torch.pow(1 - gt[neg_inds], 4)
-    c = 1.02
-    p_pos = num_pos / (num_pos + num_neg)
-    pos_weight = 1 / torch.log(c + p_pos)  # TODO pos weight need to be fixed.
+def soft_dice_coeff(pred, gt):
+    smooth = 1e-8
+    pred_ = pred.sigmoid()
+    i = torch.sum(gt)
+    j = torch.sum(pred_)
+    intersection = torch.sum(gt * pred_)
+    score = (2. * intersection + smooth) / (i + j + smooth)
+    return 1 - score
 
-    loss = 0
-    pred.sigmoid_()
-    pos_pred = pred[pos_inds]
-    neg_pred = pred[neg_inds]
 
-    pos_pred = pos_pred.clamp(min=0.0001, max=1)
-    neg_pred = neg_pred.clamp(min=0, max=0.9999)
-
-    pos_loss = torch.log(pos_pred) * (torch.pow(1 - pos_pred, 2) + zeta * (1 - torch.pow(1 - pos_pred, 2)))
-    neg_loss = torch.log(1 - neg_pred) * (torch.pow(neg_pred, 2) + zeta * (1 - torch.pow(neg_pred, 2))) * neg_weights
-
-    pos_loss = pos_loss.sum()
-    neg_loss = neg_loss.sum()
-
-    if pos_pred.nelement() == 0:
-        loss = loss - neg_loss
-    else:
-        loss = loss - (pos_loss + neg_loss) / num_pos
-    return loss
+if __name__ == '__main__':
+    inputs = torch.randn(1, 1, 650, 650)
+    target = torch.randint(0, 2, (1, 1, 650, 650)).float()
+    print(dice_bce_loss(inputs, target))

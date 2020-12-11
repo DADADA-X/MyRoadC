@@ -4,8 +4,6 @@ import numpy as np
 from pathlib import Path
 
 
-
-
 class Jitter_HSV:
     def __init__(self, u=0):
         self.u = u
@@ -42,7 +40,7 @@ class Jitter_HSV:
         if np.random.random() < self.u:
             params = self.get_params()
             for k in sample.keys():
-                if k == 'trace':
+                if k == 'image':
                     hue_shift, sat_shift, val_shift = self.fix_shift_values(sample[k], *params.values())
                     sample[k] = self.shift_hsv(sample[k], hue_shift, sat_shift, val_shift)
                 else:

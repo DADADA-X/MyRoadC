@@ -28,6 +28,29 @@ def rIoU(pred, gt):
     return miou[1]
 
 
+def relaxed_IoU(pred, gt):
+    with torch.no_grad():
+        b, c, h, w = pred.shape
+        if c == 1:
+            pred_ = pred.sigmoid().cpu().numpy()
+        else:
+            pred_ = torch.argmax(pred, dim=1).cpu().numpy()[:, np.newaxis, :, :]
+        gt_ = gt.cpu().numpy()
+        kernel = np.ones((4, 4))
+        dilated_gt = []
+        for i in range(b):
+            tmp_gt = cv2.dilate(gt_[i][0], kernel)
+            dilated_gt.append(tmp_gt)
+        dilated_gt = np.array(dilated_gt)[:, np.newaxis, :, :]
+        intersection = np.logical_and(dilated_gt, pred_)
+        union = np.logical_or(gt_, pred_)
+        if union.sum() == 0:
+            iou_score = 1
+        else:
+            iou_score = intersection.sum() / union.sum()
+    return iou_score
+
+
 def MSE(pred, gt):
     with torch.no_grad():
         pred = pred.cpu().numpy()
@@ -55,3 +78,9 @@ def _Class_IOU(confusion_matrix):
     MIoU = intersection / (union + 1e-8)
     MIoU[np.where(union==0)] = 1
     return MIoU
+
+
+if __name__ == '__main__':
+    inputs = torch.randn(1, 2, 650, 650)
+    target = torch.randint(0, 2, (1, 1, 650, 650)).float()
+    print(relaxed_IoU(inputs, target))

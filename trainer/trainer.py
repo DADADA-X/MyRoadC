@@ -247,10 +247,10 @@ class HGSegmentTrainer(BaseTrainer):
             mask_4 = mask_4.to(self.device)
 
             self.optimizer.zero_grad()
-            outputs, finalout = self.model(image)
+            outputs = self.model(image)
 
-            loss = self.criterion(finalout, mask)
-            for stack, output in enumerate(outputs):
+            loss = self.criterion(outputs[-1], mask)
+            for output in outputs[:-1]:
                 loss += self.criterion(output, mask_4)
             loss.backward()
             self.optimizer.step()
@@ -258,7 +258,7 @@ class HGSegmentTrainer(BaseTrainer):
             self.writer.set_step(step)
             self.train_metrics.update('loss', loss.item())
             for met in self.metric_ftns_seg:
-                self.train_metrics.update(met.__name__, met(finalout, mask))
+                self.train_metrics.update(met.__name__, met(outputs[-1], mask))
 
             if batch_idx % self.log_step == 0:
                 self.logger.info('Train Epoch: {} {} Loss: {:.6f}'.format(
@@ -287,15 +287,15 @@ class HGSegmentTrainer(BaseTrainer):
                 mask = mask.to(self.device)
                 mask_4 = mask_4.to(self.device)
 
-                outputs, finalout = self.model(image)
-                loss = self.criterion(finalout, mask)
-                for stack, output in enumerate(outputs):
+                outputs = self.model(image)
+                loss = self.criterion(outputs[-1], mask)
+                for output in outputs[:-1]:
                     loss += self.criterion(output, mask_4)
 
                 self.writer.set_step(step, 'valid')
                 self.valid_metrics.update('loss', loss.item())
                 for met in self.metric_ftns_seg:
-                    self.valid_metrics.update(met.__name__, met(finalout, mask))
+                    self.valid_metrics.update(met.__name__, met(outputs[-1], mask))
 
                 self.logger.info('Valid Epoch: {} {} Loss: {:.6f}'.format(
                     epoch,
@@ -457,7 +457,6 @@ class HGMTLTrainer(BaseTrainer):
         return base.format(current, total, 100.0 * current / total)
 
 
-# todo test
 class MTLTrainer3(BaseTrainer):
     def __init__(self, model, optimizer, config, data_loader, valid_data_loader=None, lr_scheduler=None):
         super(MTLTrainer3, self).__init__(model, optimizer, config)
