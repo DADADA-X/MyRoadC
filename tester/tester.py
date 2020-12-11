@@ -14,10 +14,10 @@ class SegmentEval(BaseEval):
         self.data_loader = data_loader
 
         self.criterion = soft_iou_loss
-        self.metric_ftns = relaxed_IoU
+        self.metric_ftns = [rIoU, relaxed_IoU]
 
         self.total_loss = torch.tensor(0.).to(self.device)
-        self.total_metrics = torch.tensor(0.).to(self.device)
+        self.total_metrics = torch.zeros(len(self.metric_ftns)).to(self.device)
 
         self.output_dir = output_dir
         if not self.output_dir.exists():
@@ -47,11 +47,13 @@ class SegmentEval(BaseEval):
                 # cv2.imwrite(str(self.output_dir / (image_name[i] + '.png')), predicted_prob_)
 
                 self.total_loss += self.criterion(output, mask)
-                self.total_metrics += self.metric_ftns(output, mask)
+                for i, metric in enumerate(self.metric_ftns):
+                    self.total_metrics[i] += metric(output, mask)
 
         n_samples = len(self.data_loader.sampler)
         self.logger.info("loss: {:.4f}".format(self.total_loss.item() / n_samples))
-        self.logger.info("{}: {:.2f}%".format(self.metric_ftns.__name__, self.total_metrics.item() / n_samples * 100))
+        for i, metric in enumerate(self.metric_ftns):
+            self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics[i].item() / n_samples * 100))
 
 
 class MTLEval(BaseEval):
@@ -62,12 +64,12 @@ class MTLEval(BaseEval):
         self.criterion_mask = soft_iou_loss
         self.criterion_conn = balanced_ce_loss
 
-        self.metric_ftns_mask = relaxed_IoU
+        self.metric_ftns_mask = [rIoU, relaxed_IoU]
         self.metric_ftns_conn = mIoU
 
         self.total_loss_mask = torch.tensor(0.).to(self.device)
         self.total_loss_conn = torch.tensor(0.).to(self.device)
-        self.total_metrics_mask = torch.tensor(0.).to(self.device)
+        self.total_metrics_mask = torch.zeros(len(self.metric_ftns_mask)).to(self.device)
         self.total_metrics_conn = torch.tensor(0.).to(self.device)
 
         self.output_dir = output_dir
@@ -111,7 +113,8 @@ class MTLEval(BaseEval):
 
                 self.total_loss_mask += self.criterion_mask(output1, mask)
                 self.total_loss_conn += self.criterion_conn(output2, conn)
-                self.total_metrics_mask += self.metric_ftns_mask(output1, mask)
+                for i, metric in enumerate(self.total_metrics_mask):
+                    self.total_metrics_mask[i] += metric(output1, mask)
                 self.total_metrics_conn += self.metric_ftns_conn(output2, conn)
 
         print(set(a))
@@ -119,7 +122,8 @@ class MTLEval(BaseEval):
         n_samples = len(self.data_loader.sampler)
         self.logger.info("loss_mask: {:.4f}".format(self.total_loss_mask.item() / n_samples))
         self.logger.info("loss_conn: {:.4f}".format(self.total_loss_conn.item() / n_samples))
-        self.logger.info("IoU_mask: {:.2f}%".format(self.total_metrics_mask.item() / n_samples * 100))
+        for i, metric in enumerate(self.total_metrics_mask):
+            self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics_mask[i].item() / n_samples * 100))
         self.logger.info("IoU_conn: {:.2f}%".format( self.total_metrics_conn.item() / n_samples * 100))
 
 
@@ -129,10 +133,10 @@ class HGSegmentEval(BaseEval):
         self.data_loader = data_loader
 
         self.criterion = soft_iou_loss
-        self.metric_ftns = relaxed_IoU
+        self.metric_ftns = [rIoU, relaxed_IoU]
 
         self.total_loss = torch.tensor(0.).to(self.device)
-        self.total_metrics = torch.tensor(0.).to(self.device)
+        self.total_metrics = torch.zeros(len(self.metric_ftns)).to(self.device)
 
         self.output_dir = output_dir
         if not self.output_dir.exists():
@@ -165,11 +169,13 @@ class HGSegmentEval(BaseEval):
                 # cv2.imwrite(str(self.output_dir / (image_name[i] + '.png')), predicted_prob_)
 
                 self.total_loss += self.criterion(outputs[:-1], mask)
-                self.total_metrics += self.metric_ftns(outputs[:-1], mask)
+                for i, metric in enumerate(self.metric_ftns):
+                    self.total_metrics[i] += metric(outputs[-1], mask)
 
         n_samples = len(self.data_loader.sampler)
         self.logger.info("loss: {:.4f}".format(self.total_loss.item() / n_samples))
-        self.logger.info("{}: {:.2f}%".format(self.metric_ftns.__name__, self.total_metrics.item() / n_samples * 100))
+        for i, metric in enumerate(self.metric_ftns):
+            self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics[i].item() / n_samples * 100))
 
 
 class HGMTLEval(BaseEval):
@@ -180,12 +186,12 @@ class HGMTLEval(BaseEval):
         self.criterion_mask = soft_iou_loss
         self.criterion_conn = balanced_ce_loss
 
-        self.metric_ftns_mask = relaxed_IoU
+        self.metric_ftns_mask = [rIoU, relaxed_IoU]
         self.metric_ftns_conn = mIoU
 
         self.total_loss_mask = torch.tensor(0.).to(self.device)
         self.total_loss_conn = torch.tensor(0.).to(self.device)
-        self.total_metrics_mask = torch.tensor(0.).to(self.device)
+        self.total_metrics_mask = torch.zeros(len(self.metric_ftns_mask)).to(self.device)
         self.total_metrics_conn = torch.tensor(0.).to(self.device)
 
         self.output_dir = output_dir
@@ -235,7 +241,8 @@ class HGMTLEval(BaseEval):
 
                 self.total_loss_mask += self.criterion_mask(output1[-1], mask)
                 self.total_loss_conn += self.criterion_conn(output2[-1], conn)
-                self.total_metrics_mask += self.metric_ftns_mask(output1[-1], mask)
+                for i, metric in enumerate(self.total_metrics_mask):
+                    self.total_metrics_mask[i] += metric(output1, mask)
                 self.total_metrics_conn += self.metric_ftns_conn(output2[-1], conn)
 
         print(set(a))
@@ -243,7 +250,8 @@ class HGMTLEval(BaseEval):
         n_samples = len(self.data_loader.sampler)
         self.logger.info("loss_mask: {:.4f}".format(self.total_loss_mask.item() / n_samples))
         self.logger.info("loss_conn: {:.4f}".format(self.total_loss_conn.item() / n_samples))
-        self.logger.info("IoU_mask: {:.2f}%".format(self.total_metrics_mask.item() / n_samples * 100))
+        for i, metric in enumerate(self.total_metrics_mask):
+            self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics_mask[i].item() / n_samples * 100))
         self.logger.info("IoU_conn: {:.2f}%".format( self.total_metrics_conn.item() / n_samples * 100))
 
 
@@ -256,14 +264,14 @@ class MTLEval3(BaseEval):
         self.criterion_cline = mse_loss
         self.criterion_point = mse_loss
 
-        self.metric_ftns_mask = relaxed_IoU
+        self.metric_ftns_mask = [rIoU, relaxed_IoU]
         self.metric_ftns_cline = MSE
         self.metric_ftns_point = MSE
 
         self.total_loss_mask = torch.tensor(0.).to(self.device)
         self.total_loss_cline = torch.tensor(0.).to(self.device)
         self.total_loss_point = torch.tensor(0.).to(self.device)
-        self.total_metrics_mask = torch.tensor(0.).to(self.device)
+        self.total_metrics_mask = torch.zeros(len(self.metric_ftns_mask)).to(self.device)
         self.total_metrics_cline = torch.tensor(0.).to(self.device)
         self.total_metrics_point = torch.tensor(0.).to(self.device)
 
@@ -313,7 +321,8 @@ class MTLEval3(BaseEval):
                 self.total_loss_mask += self.criterion_mask(output1, mask)
                 self.total_loss_cline += self.criterion_cline(output2, cline)
                 self.total_loss_point += self.criterion_point(output3, point)
-                self.total_metrics_mask += self.metric_ftns_mask(output1, mask)
+                for i, metric in enumerate(self.total_metrics_mask):
+                    self.total_metrics_mask[i] += metric(output1, mask)
                 self.total_metrics_cline += self.metric_ftns_cline(output2, cline)
                 self.total_metrics_point += self.metric_ftns_point(output3, point)
 
@@ -321,7 +330,8 @@ class MTLEval3(BaseEval):
         self.logger.info("loss_mask: {:.4f}".format(self.total_loss_mask.item() / n_samples))
         self.logger.info("loss_cline: {:.4f}".format(self.total_loss_cline.item() / n_samples))
         self.logger.info("loss_point: {:.4f}".format(self.total_loss_point.item() / n_samples))
-        self.logger.info("IoU_mask: {:.2f}%".format(self.total_metrics_mask.item() / n_samples * 100))
+        for i, metric in enumerate(self.total_metrics_mask):
+            self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics_mask[i].item() / n_samples * 100))
         self.logger.info("MSE_cline: {:.2f}%".format( self.total_metrics_cline.item() / n_samples * 100))
         self.logger.info("MSE_point: {:.2f}%".format( self.total_metrics_point.item() / n_samples * 100))
 
