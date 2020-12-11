@@ -36,7 +36,7 @@ class SegmentEval(BaseEval):
 
                 # save smple images
                 predicted_prob = torch.argmax(output, dim=1)
-                predicted_prob_ = predicted_prob[i].squeeze().cpu().numpy() * 255
+                predicted_prob_ = predicted_prob.squeeze().cpu().numpy() * 255
                 predicted_prob_ = np.asarray(predicted_prob_, dtype=np.uint8)
 
                 # plot
@@ -90,11 +90,11 @@ class MTLEval(BaseEval):
 
                 # save smple images
                 prob_m = torch.argmax(output1, dim=1)
-                prob_m_ = prob_m[i].squeeze().cpu().numpy() * 255
+                prob_m_ = prob_m.squeeze().cpu().numpy() * 255
                 prob_m_ = np.asarray(prob_m_, dtype=np.uint8)
 
                 prob_c = torch.argmax(output2, dim=1)
-                prob_c_ = prob_c[i].squeeze().cpu().numpy()
+                prob_c_ = prob_c.squeeze().cpu().numpy()
                 prob_c_ = np.asarray(prob_c_, dtype=np.uint8)
 
                 # plot
@@ -151,7 +151,7 @@ class HGSegmentEval(BaseEval):
 
                 # save smple images
                 predicted_prob = torch.argmax(outputs[:-1], dim=1)
-                predicted_prob_ = predicted_prob[i].squeeze().cpu().numpy() * 255
+                predicted_prob_ = predicted_prob.squeeze().cpu().numpy() * 255
                 predicted_prob_ = np.asarray(predicted_prob_, dtype=np.uint8)
 
                 # plot
@@ -208,11 +208,10 @@ class HGMTLEval(BaseEval):
 
                 # save smple images
                 prob_m = torch.argmax(output1[-1], dim=1)
-                prob_c = torch.argmax(output2[-1], dim=1)
-
                 prob_m_ = prob_m.squeeze().cpu().numpy() * 255
                 prob_m_ = np.asarray(prob_m_, dtype=np.uint8)
 
+                prob_c = torch.argmax(output2[-1], dim=1)
                 prob_c_ = prob_c.squeeze().cpu().numpy()
                 prob_c_ = np.asarray(prob_c_, dtype=np.uint8)
 
@@ -245,7 +244,7 @@ class HGMTLEval(BaseEval):
         self.logger.info("loss_mask: {:.4f}".format(self.total_loss_mask.item() / n_samples))
         self.logger.info("loss_conn: {:.4f}".format(self.total_loss_conn.item() / n_samples))
         self.logger.info("IoU_mask: {:.2f}%".format(self.total_metrics_mask.item() / n_samples * 100))
-        self.logger.info("IoU_conn: {:.2f}%".format( self.total_metrics_mask.item() / n_samples * 100))
+        self.logger.info("IoU_conn: {:.2f}%".format( self.total_metrics_conn.item() / n_samples * 100))
 
 
 class MTLEval3(BaseEval):
@@ -289,15 +288,15 @@ class MTLEval3(BaseEval):
 
                 # save smple images
                 prob_m = torch.argmax(output1, dim=1)
-                prob_m_ = prob_m[i].squeeze().cpu().numpy() * 255
+                prob_m_ = prob_m.squeeze().cpu().numpy() * 255
                 prob_m_ = np.asarray(prob_m_, dtype=np.uint8)
 
                 prob_c = torch.sigmoid(output2)
-                prob_c_ = prob_c[i].squeeze().cpu().numpy() * 255
+                prob_c_ = prob_c.squeeze().cpu().numpy() * 255
                 prob_c_ = np.asarray(prob_c_, dtype=np.uint8)
 
                 prob_p = torch.sigmoid(output3)
-                prob_p_ = prob_p[i].squeeze().cpu().numpy() * 255
+                prob_p_ = prob_p.squeeze().cpu().numpy() * 255
                 prob_p_ = np.asarray(prob_p_, dtype=np.uint8)
 
                 # plot
@@ -313,7 +312,7 @@ class MTLEval3(BaseEval):
 
                 self.total_loss_mask += self.criterion_mask(output1, mask)
                 self.total_loss_cline += self.criterion_cline(output2, cline)
-                self.total_loss_point += self.criterion_cline(output3, point)
+                self.total_loss_point += self.criterion_point(output3, point)
                 self.total_metrics_mask += self.metric_ftns_mask(output1, mask)
                 self.total_metrics_cline += self.metric_ftns_cline(output2, cline)
                 self.total_metrics_point += self.metric_ftns_point(output3, point)
