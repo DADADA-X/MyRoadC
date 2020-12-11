@@ -40,8 +40,8 @@ class SegmentEval(BaseEval):
                 predicted_prob_ = np.asarray(predicted_prob_, dtype=np.uint8)
 
                 # plot
-                # plt.imshow(predicted_prob_)
-                # plt.show()
+                plt.imshow(predicted_prob_)
+                plt.show()
 
                 # save
                 # cv2.imwrite(str(self.output_dir / (image_name[i] + '.png')), predicted_prob_)
@@ -113,7 +113,7 @@ class MTLEval(BaseEval):
 
                 self.total_loss_mask += self.criterion_mask(output1, mask)
                 self.total_loss_conn += self.criterion_conn(output2, conn)
-                for i, metric in enumerate(self.total_metrics_mask):
+                for i, metric in enumerate(self.metric_ftns_mask):
                     self.total_metrics_mask[i] += metric(output1, mask)
                 self.total_metrics_conn += self.metric_ftns_conn(output2, conn)
 
@@ -122,7 +122,7 @@ class MTLEval(BaseEval):
         n_samples = len(self.data_loader.sampler)
         self.logger.info("loss_mask: {:.4f}".format(self.total_loss_mask.item() / n_samples))
         self.logger.info("loss_conn: {:.4f}".format(self.total_loss_conn.item() / n_samples))
-        for i, metric in enumerate(self.total_metrics_mask):
+        for i, metric in enumerate(self.metric_ftns_mask):
             self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics_mask[i].item() / n_samples * 100))
         self.logger.info("IoU_conn: {:.2f}%".format( self.total_metrics_conn.item() / n_samples * 100))
 
@@ -241,7 +241,7 @@ class HGMTLEval(BaseEval):
 
                 self.total_loss_mask += self.criterion_mask(output1[-1], mask)
                 self.total_loss_conn += self.criterion_conn(output2[-1], conn)
-                for i, metric in enumerate(self.total_metrics_mask):
+                for i, metric in enumerate(self.metric_ftns_mask):
                     self.total_metrics_mask[i] += metric(output1, mask)
                 self.total_metrics_conn += self.metric_ftns_conn(output2[-1], conn)
 
@@ -250,7 +250,7 @@ class HGMTLEval(BaseEval):
         n_samples = len(self.data_loader.sampler)
         self.logger.info("loss_mask: {:.4f}".format(self.total_loss_mask.item() / n_samples))
         self.logger.info("loss_conn: {:.4f}".format(self.total_loss_conn.item() / n_samples))
-        for i, metric in enumerate(self.total_metrics_mask):
+        for i, metric in enumerate(self.metric_ftns_mask):
             self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics_mask[i].item() / n_samples * 100))
         self.logger.info("IoU_conn: {:.2f}%".format( self.total_metrics_conn.item() / n_samples * 100))
 
@@ -321,7 +321,7 @@ class MTLEval3(BaseEval):
                 self.total_loss_mask += self.criterion_mask(output1, mask)
                 self.total_loss_cline += self.criterion_cline(output2, cline)
                 self.total_loss_point += self.criterion_point(output3, point)
-                for i, metric in enumerate(self.total_metrics_mask):
+                for i, metric in enumerate(self.metric_ftns_mask):
                     self.total_metrics_mask[i] += metric(output1, mask)
                 self.total_metrics_cline += self.metric_ftns_cline(output2, cline)
                 self.total_metrics_point += self.metric_ftns_point(output3, point)
@@ -330,7 +330,7 @@ class MTLEval3(BaseEval):
         self.logger.info("loss_mask: {:.4f}".format(self.total_loss_mask.item() / n_samples))
         self.logger.info("loss_cline: {:.4f}".format(self.total_loss_cline.item() / n_samples))
         self.logger.info("loss_point: {:.4f}".format(self.total_loss_point.item() / n_samples))
-        for i, metric in enumerate(self.total_metrics_mask):
+        for i, metric in enumerate(self.metric_ftns_mask):
             self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics_mask[i].item() / n_samples * 100))
         self.logger.info("MSE_cline: {:.2f}%".format( self.total_metrics_cline.item() / n_samples * 100))
         self.logger.info("MSE_point: {:.2f}%".format( self.total_metrics_point.item() / n_samples * 100))
