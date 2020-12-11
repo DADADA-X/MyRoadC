@@ -40,8 +40,8 @@ class SegmentEval(BaseEval):
                 predicted_prob_ = np.asarray(predicted_prob_, dtype=np.uint8)
 
                 # plot
-                plt.imshow(predicted_prob_)
-                plt.show()
+                # plt.imshow(predicted_prob_)
+                # plt.show()
 
                 # save
                 # cv2.imwrite(str(self.output_dir / (image_name[i] + '.png')), predicted_prob_)
@@ -100,8 +100,9 @@ class MTLEval(BaseEval):
                 prob_c_ = np.asarray(prob_c_, dtype=np.uint8)
 
                 # plot
-                # plt.imshow(prob_m_)
-                # plt.imshow(prob_c)
+                # fig, ax = plt.subplots(1, 2)
+                # ax[0].imshow(prob_m_)
+                # ax[1].imshow(prob_c)
                 # plt.show()
 
                 # stat conn
@@ -283,7 +284,6 @@ class MTLEval3(BaseEval):
 
     def test(self):
         self.model.eval()
-        a = []
         with torch.no_grad():
             for i, data in enumerate(tqdm(self.data_loader)):
                 image_name, image, mask, cline, point = data.values()
@@ -308,9 +308,10 @@ class MTLEval3(BaseEval):
                 prob_p_ = np.asarray(prob_p_, dtype=np.uint8)
 
                 # plot
-                # plt.imshow(prob_m_)
-                # plt.imshow(prob_c_)
-                # plt.imshow(prob_p_)
+                # fig, ax = plt.subplots(1, 3)
+                # ax[0].imshow(prob_m_)
+                # ax[1].imshow(prob_c_)
+                # ax[2].imshow(prob_p_)
                 # plt.show()
 
                 # save
@@ -332,8 +333,8 @@ class MTLEval3(BaseEval):
         self.logger.info("loss_point: {:.4f}".format(self.total_loss_point.item() / n_samples))
         for i, metric in enumerate(self.metric_ftns_mask):
             self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics_mask[i].item() / n_samples * 100))
-        self.logger.info("MSE_cline: {:.2f}%".format( self.total_metrics_cline.item() / n_samples * 100))
-        self.logger.info("MSE_point: {:.2f}%".format( self.total_metrics_point.item() / n_samples * 100))
+        self.logger.info("MSE_cline: {:.2f}".format( self.total_metrics_cline.item() / n_samples ))
+        self.logger.info("MSE_point: {:.2f}".format( self.total_metrics_point.item() / n_samples))
 
 # todo just for test
 # class SegmentEval(BaseEval):

@@ -53,7 +53,7 @@ def relaxed_IoU(pred, gt):
 
 def MSE(pred, gt):
     with torch.no_grad():
-        pred = pred.cpu().numpy()
+        pred = pred.sigmoid().cpu().numpy()
         gt = gt.cpu().numpy()
         MSE = np.sqrt(((pred - gt) ** 2).sum() / gt.size)
     return MSE
