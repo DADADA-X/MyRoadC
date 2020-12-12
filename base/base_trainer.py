@@ -91,11 +91,11 @@ class BaseTrainer:
                 else:
                     not_improved_count += 1
 
-                # if not_improved_count > self.early_stop:
-                #     self._save_checkpoint(epoch)  # save current
-                #     self.logger.info("Validation performance didn\'t improve for {} epochs. "
-                #                      "Training stops.".format(self.early_stop))
-                #     break
+                if not_improved_count > self.early_stop:
+                    self._save_checkpoint(epoch)  # save current
+                    self.logger.info("Validation performance didn\'t improve for {} epochs. "
+                                     "Training stops.".format(self.early_stop))
+                    break
 
             if best == True:
                 self._save_checkpoint(epoch, save_best=best)
