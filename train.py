@@ -19,8 +19,8 @@ def main(config):
     train_dataset = config.init_obj('train_dataset', dataset_module, **{'seed': seed})
     valid_dataset = config.init_obj('valid_dataset', dataset_module, **{'seed': seed})
 
-    data_loader = config.init_obj('data_loader', dataloader_module, **{'dataset': train_dataset})
-    valid_data_loader = config.init_obj('data_loader', dataloader_module, **{'dataset': valid_dataset})
+    data_loader = config.init_obj('train_data_loader', dataloader_module, **{'dataset': train_dataset})
+    valid_data_loader = config.init_obj('valid_data_loader', dataloader_module, **{'dataset': valid_dataset})
 
     model = config.init_obj('arch', model_module)
     weights_init(model, seed=seed)

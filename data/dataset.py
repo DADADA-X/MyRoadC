@@ -44,6 +44,7 @@ class Dataset(BaseDataset):
         self.transform = None
         if self.data_aug_prob > 0:
             self.transform = transforms.Compose([
+                util.RandomCrop(crop_size),
                 util.Jitter_HSV(self.data_aug_prob),
                 util.RandomHorizontalFlip(self.data_aug_prob),
                 util.RandomVerticleFlip(self.data_aug_prob),
@@ -124,6 +125,7 @@ class MTLDataset(BaseDataset):
         self.transform = None
         if self.data_aug_prob > 0:
             self.transform = transforms.Compose([
+                util.RandomCrop(crop_size),
                 util.Jitter_HSV(self.data_aug_prob),
                 util.RandomHorizontalFlip(self.data_aug_prob),
                 util.RandomVerticleFlip(self.data_aug_prob),
@@ -203,6 +205,7 @@ class HGDataset(BaseDataset):
         self.transform = None
         if self.data_aug_prob > 0:
             self.transform = transforms.Compose([
+                util.RandomCrop(crop_size),
                 util.Jitter_HSV(self.data_aug_prob),
                 util.RandomHorizontalFlip(self.data_aug_prob),
                 util.RandomVerticleFlip(self.data_aug_prob),
@@ -294,6 +297,7 @@ class MTLHGDataset(BaseDataset):
         self.transform = None
         if self.data_aug_prob > 0:
             self.transform = transforms.Compose([
+                util.RandomCrop(crop_size),
                 util.Jitter_HSV(self.data_aug_prob),
                 util.RandomHorizontalFlip(self.data_aug_prob),
                 util.RandomVerticleFlip(self.data_aug_prob),
@@ -390,6 +394,7 @@ class MTLDataset3(BaseDataset):
         self.transform = None
         if self.data_aug_prob > 0:
             self.transform = transforms.Compose([
+                util.RandomCrop(crop_size),
                 util.Jitter_HSV(self.data_aug_prob),
                 util.RandomHorizontalFlip(self.data_aug_prob),
                 util.RandomVerticleFlip(self.data_aug_prob),

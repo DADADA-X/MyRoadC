@@ -89,6 +89,7 @@ class RandomCrop:
         new_h, new_w = self.output_size
         new_h_4, new_w_4 = new_h // 4, new_w // 4
 
+        i, top, left = 0, 0, 0
         for i in range(10):
             top = np.random.randint(0, h - new_h)
             left = np.random.randint(0, w - new_w)
@@ -98,11 +99,10 @@ class RandomCrop:
 
         if i == 9:
             max = 0
-            for i, j in [(x, y) for x in [0, 394, 788] for y in [0, 394, 788]]:
-                if (sample['image'][i:i+512, j:j+512]).sum() > max:
-                    max = (sample['image'][i:i+512, j:j+512]).sum()
-                    top = i
-                    left = j
+            for t, l in [(x, y) for x in [0, 256] for y in [0, 256]]:
+                if (sample['image'][t:t+256, l:l+256]).sum() > max:
+                    max = (sample['image'][t:t+256, l:l+256]).sum()
+                    top, left = t, l
 
         top_4 = top // 4
         left_4 = left // 4
