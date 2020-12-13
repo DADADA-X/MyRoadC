@@ -900,7 +900,7 @@ def execute(gt_list, gp_list, root_list, linestring_delta=15,
         total_C += C
 
     print('avg_apls = {}'.format(total_C / (i + 1)))
-    logger.info('{}: avg_apls = {}'.format(id, total_C / (i + 1)))
+    logger.info('{}: avg_apls = {:.2f}%'.format(id, total_C / (i + 1)*100))
 
 
 def main():

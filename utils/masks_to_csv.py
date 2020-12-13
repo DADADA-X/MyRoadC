@@ -158,7 +158,7 @@ def flatten(l):
     return [item for sublist in l for item in sublist]
 
 
-def remove_small_terminal(graph):
+def remove_small_terminal(graph, max_distance):
     deg = graph.degree()
     terminal_points = [i for i, d in dict(deg).items() if d == 1]
     edges = list(graph.edges())
@@ -173,14 +173,14 @@ def remove_small_terminal(graph):
                 continue
         vals = flatten([[v] for v in graph[s][e].values()])
         for ix, val in enumerate(vals):
-            if s in terminal_points and val.get('weight', 0) < 30:
+            if s in terminal_points and val.get('weight', 0) < max_distance:
                 graph.remove_node(s)
-            if e in terminal_points and val.get('weight', 0) < 30:
+            if e in terminal_points and val.get('weight', 0) < max_distance:
                 graph.remove_node(e)
 
 
-def process_masks(mask_paths, thre=0.9):
-    replicate = 5
+def process_masks(mask_paths, ratio=1, thre=0.9):
+    replicate = 15  # todo ratio
     clip = 2
     rec = replicate + clip
     lnstr_df = pd.DataFrame()
@@ -189,8 +189,8 @@ def process_masks(mask_paths, thre=0.9):
         msk = cv2.imread(msk_pth, cv2.IMREAD_GRAYSCALE)
         msk = cv2.copyMakeBorder(msk, replicate, replicate, replicate, replicate, cv2.BORDER_REPLICATE)
         b_msk = msk > 255 * thre
-        remove_small_holes(b_msk, 300, in_place=True)
-        remove_small_objects(b_msk, 300, in_place=True)
+        remove_small_holes(b_msk, 400/ratio**2, in_place=True)
+        remove_small_objects(b_msk, 400/ratio**2, in_place=True)
         ske = skeletonize(b_msk).astype(np.uint16)
         ske = ske[rec:-rec, rec:-rec]
         ske = cv2.copyMakeBorder(ske, clip, clip, clip, clip, cv2.BORDER_CONSTANT, value=0)
@@ -198,14 +198,14 @@ def process_masks(mask_paths, thre=0.9):
         # build graph from skeleton
         graph = sknw.build_sknw(ske, multi=True)
         num_nodes = len(graph.nodes)
-        remove_small_terminal(graph)
+        remove_small_terminal(graph, max_distance=20/ratio)
         while len(graph.nodes) != num_nodes:
             num_nodes = len(graph.nodes)
-            remove_small_terminal(graph)
-        segments = simplify_graph(graph)
+            remove_small_terminal(graph, max_distance=20/ratio)
+        segments = simplify_graph(graph, max_distance=4)  # todo ratio w/wo
 
         # plt segments
-        # plt.imshow(b_msk)
+        # plt.imshow(np.zeros((512, 512)))
         # for segment in segments:
         #     plt.plot(np.array(segment)[:, 1], np.array(segment)[:, 0], 'green')
         #     ps = np.array([segment[0], segment[-1]])
@@ -213,7 +213,7 @@ def process_masks(mask_paths, thre=0.9):
         # plt.show()
 
         # plt graph
-        # plt.imshow(msk)
+        # plt.imshow(np.zeros((512, 512)))
         # for (s, e) in graph.edges():
         #     ps = graph[s][e][0]['pts']
         #     plt.plot(ps[:, 1], ps[:, 0], 'green')
@@ -232,26 +232,33 @@ def process_masks(mask_paths, thre=0.9):
     return lnstr_df
 
 
-def masks_to_csv(root):
+def masks_to_csv(root, ratio=1):
     fname = [str(f) for f in root.glob('*.png')]
 
+    if root.parts[root.parts[6].find('test')-2] == 'mass_roads':
+        ratio = 4
+    elif root.parts[root.parts[6].find('test')-2] == 'roadtracer':
+        ratio = 2
+    elif root.parts[root.parts[6].find('test')-2] == 'spacenet':
+        ratio = 1
+
     print('Processing masks into linestrings...')
-    lstrs = process_masks(fname)
+    lstrs = process_masks(fname, ratio=ratio)
     lstrs = lstrs[['ImageId', 'WKT_Pix']].copy()
     lstrs = lstrs.drop_duplicates()
 
     out_root = Path('./solutions')
     if 'test' in root.name:
-        out_file = out_root / root.parts[7] /'lstrs_prop_sn.csv'
-        Path.mkdir(out_file.parent, exist_ok=True)
+        out_file = out_root / root.parts[root.parts[6].find('test')-1] /'lstrs_prop_sn.csv'
+        Path.mkdir(out_file.parent, parents=True, exist_ok=True)
     elif 'masks' in root.name:
         out_file = out_root / 'lstrs_gt_sn.csv'
-        Path.mkdir(out_root, exist_ok=True)
+        Path.mkdir(out_root, parents=True, exist_ok=True)
     else:
         out_file = out_root / 'test.csv'
-        Path.mkdir(out_root, exist_ok=True)
+        Path.mkdir(out_root, parents=True, exist_ok=True)
 
-    lstrs.to_csv(str(out_file), index = False)
+    lstrs.to_csv(str(out_file), index=False)
     print('Generate csv successfully!')
 
 
