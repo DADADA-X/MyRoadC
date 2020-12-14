@@ -44,7 +44,7 @@ class SegmentEval(BaseEval):
                 # plt.show()
 
                 # save
-                # cv2.imwrite(str(self.output_dir / (image_name[0] + '.png')), predicted_prob_)
+                cv2.imwrite(str(self.output_dir / (image_name[0] + '.png')), predicted_prob_)
 
                 self.total_loss += self.criterion(output, mask)
                 for i, metric in enumerate(self.metric_ftns):
@@ -110,7 +110,7 @@ class MTLEval(BaseEval):
                 a.extend(Counter(prob_c_.flatten()).keys())
 
                 # save
-                # cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
+                cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
                 # cv2.imwrite(str(self.output_dir / "conn" / (image_name[0] + '.png')), prob_c_)
 
                 self.total_loss_mask += self.criterion_mask(output1, mask)

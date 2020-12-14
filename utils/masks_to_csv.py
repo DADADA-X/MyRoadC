@@ -235,11 +235,11 @@ def process_masks(mask_paths, ratio=1, thre=0.9):
 def masks_to_csv(root, ratio=1):
     fname = [str(f) for f in root.glob('*.png')]
 
-    if root.parts[root.parts[6].find('test')-2] == 'mass_roads':
+    if root.parts[root.parts.index('test')-2] == 'mass_roads':
         ratio = 4
-    elif root.parts[root.parts[6].find('test')-2] == 'roadtracer':
+    elif root.parts[root.parts.index('test')-2] == 'roadtracer':
         ratio = 2
-    elif root.parts[root.parts[6].find('test')-2] == 'spacenet':
+    elif root.parts[root.parts.index('test')-2] == 'spacenet':
         ratio = 1
 
     print('Processing masks into linestrings...')
@@ -248,8 +248,8 @@ def masks_to_csv(root, ratio=1):
     lstrs = lstrs.drop_duplicates()
 
     out_root = Path('./solutions')
-    if 'test' in root.name:
-        out_file = out_root / root.parts[root.parts[6].find('test')-1] /'lstrs_prop_sn.csv'
+    if 'test' in root.parts:
+        out_file = out_root / root.parts[root.parts.index('test')-1] /'lstrs_prop_sn.csv'
         Path.mkdir(out_file.parent, parents=True, exist_ok=True)
     elif 'masks' in root.name:
         out_file = out_root / 'lstrs_gt_sn.csv'
