@@ -44,7 +44,7 @@ class SegmentEval(BaseEval):
                 # plt.show()
 
                 # save
-                cv2.imwrite(str(self.output_dir / (image_name[0] + '.png')), predicted_prob_)
+                # cv2.imwrite(str(self.output_dir / (image_name[0] + '.png')), predicted_prob_)
 
                 self.total_loss += self.criterion(output, mask)
                 for i, metric in enumerate(self.metric_ftns):
@@ -100,10 +100,11 @@ class MTLEval(BaseEval):
                 prob_c_ = np.asarray(prob_c_, dtype=np.uint8)
 
                 # plot
-                # fig, ax = plt.subplots(1, 2)
-                # ax[0].imshow(prob_m_)
-                # ax[1].imshow(prob_c)
-                # plt.show()
+                fig, ax = plt.subplots(1, 3)
+                ax[0].imshow(mask.cpu()[0][0])
+                ax[1].imshow(prob_m_)
+                ax[2].imshow(prob_c_)
+                plt.show()
 
                 # stat conn
                 a.extend(Counter(prob_c_.flatten()).keys())

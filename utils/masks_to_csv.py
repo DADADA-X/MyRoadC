@@ -189,8 +189,8 @@ def process_masks(mask_paths, ratio=1, thre=0.9):
         msk = cv2.imread(msk_pth, cv2.IMREAD_GRAYSCALE)
         msk = cv2.copyMakeBorder(msk, replicate, replicate, replicate, replicate, cv2.BORDER_REPLICATE)
         b_msk = msk > 255 * thre
-        remove_small_holes(b_msk, 400/ratio**2, in_place=True)
-        remove_small_objects(b_msk, 400/ratio**2, in_place=True)
+        remove_small_holes(b_msk, 300/ratio**2, in_place=True)
+        remove_small_objects(b_msk, 300/ratio**2, in_place=True)
         ske = skeletonize(b_msk).astype(np.uint16)
         ske = ske[rec:-rec, rec:-rec]
         ske = cv2.copyMakeBorder(ske, clip, clip, clip, clip, cv2.BORDER_CONSTANT, value=0)
@@ -202,15 +202,7 @@ def process_masks(mask_paths, ratio=1, thre=0.9):
         while len(graph.nodes) != num_nodes:
             num_nodes = len(graph.nodes)
             remove_small_terminal(graph, max_distance=20/ratio)
-        segments = simplify_graph(graph, max_distance=4)  # todo ratio w/wo
-
-        # plt segments
-        # plt.imshow(np.zeros((512, 512)))
-        # for segment in segments:
-        #     plt.plot(np.array(segment)[:, 1], np.array(segment)[:, 0], 'green')
-        #     ps = np.array([segment[0], segment[-1]])
-        #     plt.plot(ps[:, 1], ps[:, 0], 'r.')
-        # plt.show()
+        segments = simplify_graph(graph, max_distance=2)  # todo ratio w/wo
 
         # plt graph
         # plt.imshow(np.zeros((512, 512)))
@@ -220,6 +212,14 @@ def process_masks(mask_paths, ratio=1, thre=0.9):
         # nodes = graph.nodes()
         # ps = np.array([nodes[i]['o'] for i in nodes])
         # plt.plot(ps[:, 1], ps[:, 0], 'r.')
+
+        # plt segments
+        # plt.imshow(np.zeros((512, 512)))
+        # for segment in segments:
+        #     plt.plot(np.array(segment)[:, 1], np.array(segment)[:, 0], 'green')
+        #     ps = np.array([segment[0], segment[-1]])
+        #     plt.plot(ps[:, 1], ps[:, 0], 'r.')
+        # plt.show()
 
         linestrings_ = segmets_to_linestrings(segments)
         linestrings = unique(linestrings_)
