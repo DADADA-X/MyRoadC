@@ -100,11 +100,11 @@ class MTLEval(BaseEval):
                 prob_c_ = np.asarray(prob_c_, dtype=np.uint8)
 
                 # plot
-                # fig, ax = plt.subplots(1, 3)
-                # ax[0].imshow(mask.cpu()[0][0])
-                # ax[1].imshow(prob_m_)
-                # ax[2].imshow(prob_c_)
-                # plt.show()
+                fig, ax = plt.subplots(1, 3)
+                ax[0].imshow(mask.cpu()[0][0])
+                ax[1].imshow(prob_m_)
+                ax[2].imshow(prob_c_)
+                plt.show()
 
                 # stat conn
                 a.extend(Counter(prob_c_.flatten()).keys())
@@ -116,7 +116,7 @@ class MTLEval(BaseEval):
                 self.total_loss_mask += self.criterion_mask(output1, mask)
                 self.total_loss_conn += self.criterion_conn(output2, conn)
                 for i, metric in enumerate(self.metric_ftns_mask):
-                    self.total_metrics_mask[i] += metric(output1[-1], mask)
+                    self.total_metrics_mask[i] += metric(output1, mask)
                 self.total_metrics_conn += self.metric_ftns_conn(output2, conn)
 
         print(set(a))
@@ -316,7 +316,7 @@ class MTLEval3(BaseEval):
                 # plt.show()
 
                 # save
-                # cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
+                cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
                 # cv2.imwrite(str(self.output_dir / "cline" / (image_name[0] + '.png')), prob_c_)
                 # cv2.imwrite(str(self.output_dir / "point" / (image_name[0] + '.png')), prob_p_)
 
@@ -324,7 +324,7 @@ class MTLEval3(BaseEval):
                 self.total_loss_cline += self.criterion_cline(output2, cline)
                 self.total_loss_point += self.criterion_point(output3, point)
                 for i, metric in enumerate(self.metric_ftns_mask):
-                    self.total_metrics_mask[i] += metric(output1[-1], mask)
+                    self.total_metrics_mask[i] += metric(output1, mask)
                 self.total_metrics_cline += self.metric_ftns_cline(output2, cline)
                 self.total_metrics_point += self.metric_ftns_point(output3, point)
 
