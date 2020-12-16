@@ -40,8 +40,8 @@ class SegmentEval(BaseEval):
                 predicted_prob_ = np.asarray(predicted_prob_, dtype=np.uint8)
 
                 # plot
-                plt.imshow(predicted_prob_)
-                plt.show()
+                # plt.imshow(predicted_prob_)
+                # plt.show()
 
                 # save
                 cv2.imwrite(str(self.output_dir / (image_name[0] + '.png')), predicted_prob_)

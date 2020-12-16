@@ -708,7 +708,7 @@ class ImproveTrainer(BaseTrainer):
 
         self.log_step = 1
         self.criterion_mask = soft_iou_loss
-        self.criterion_conn = balanced_ce_loss
+        self.criterion_conn = ce_loss
 
         self.metric_ftns_mask = [rIoU]
         self.metric_ftns_conn = [mIoU]

@@ -44,6 +44,18 @@ def balanced_ce_loss(pred, gt):
     return nll_loss(pred_, gt_)
 
 
+def ce_loss(pred, gt):
+    b, c, h, w = pred.shape
+    pred_ = F.log_softmax(pred, dim=1)
+    gt_ = gt.squeeze().long()
+    if len(gt_.shape) < 3:
+        gt_ = gt_.unsqueeze(0)
+
+    weight = torch.ones(c).cuda()
+    nll_loss = nn.NLLLoss(weight=weight, ignore_index=255)
+    return nll_loss(pred_, gt_)
+
+
 def mse_loss(pred, gt):
     criterion = torch.nn.MSELoss()
     pred_ = pred.sigmoid()
