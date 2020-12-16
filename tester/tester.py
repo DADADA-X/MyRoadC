@@ -40,8 +40,8 @@ class SegmentEval(BaseEval):
                 predicted_prob_ = np.asarray(predicted_prob_, dtype=np.uint8)
 
                 # plot
-                # plt.imshow(predicted_prob_)
-                # plt.show()
+                plt.imshow(predicted_prob_)
+                plt.show()
 
                 # save
                 cv2.imwrite(str(self.output_dir / (image_name[0] + '.png')), predicted_prob_)
@@ -100,11 +100,11 @@ class MTLEval(BaseEval):
                 prob_c_ = np.asarray(prob_c_, dtype=np.uint8)
 
                 # plot
-                fig, ax = plt.subplots(1, 3)
-                ax[0].imshow(mask.cpu()[0][0])
-                ax[1].imshow(prob_m_)
-                ax[2].imshow(prob_c_)
-                plt.show()
+                # fig, ax = plt.subplots(1, 3)
+                # ax[0].imshow(mask.cpu()[0][0])
+                # ax[1].imshow(prob_m_)
+                # ax[2].imshow(prob_c_)
+                # plt.show()
 
                 # stat conn
                 a.extend(Counter(prob_c_.flatten()).keys())
@@ -231,14 +231,14 @@ class HGMTLEval(BaseEval):
                 # ax[1].axis('off')
                 # ax[2].imshow(np.logical_not(prob_m_), cmap='gray')
                 # ax[2].axis('off')
-                # ax[3].imshow(prob_c_.cpu()[0], cmap='jet')
+                # ax[3].imshow(prob_c_, cmap='jet')
                 # ax[3].axis('off')
                 # plt.show()
 
                 # stat conn
                 a.extend(Counter(prob_c_.flatten()).keys())
 
-                # cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
+                cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
                 # cv2.imwrite(str(self.output_dir / "conn" / (image_name[0] + '.png')), prob_m_)
 
                 self.total_loss_mask += self.criterion_mask(output1[-1], mask)

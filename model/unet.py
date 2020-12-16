@@ -272,13 +272,13 @@ if __name__ == '__main__':
             count += 1
     print(model)
     print(count)
-    # image = cv2.imread('/home/data/xyj/spacenet/train/images/RGB-PanSharpen_AOI_2_Vegas_img853_18.tif')
-    # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    # image = torch.from_numpy((image / 255.0).transpose((2, 0, 1)).astype(np.float32))
-    # mean = [0.334, 0.329, 0.326]
-    # std = [0.161, 0.153, 0.144]
-    # normalize = transforms.Normalize(mean, std)
-    # image = normalize(image).unsqueeze(0)
+    image = cv2.imread('/home/data/xyj/spacenet/train/images/RGB-PanSharpen_AOI_2_Vegas_img853_18.tif')
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = torch.from_numpy((image / 255.0).transpose((2, 0, 1)).astype(np.float32))
+    mean = [0.334, 0.329, 0.326]
+    std = [0.161, 0.153, 0.144]
+    normalize = transforms.Normalize(mean, std)
+    image = normalize(image).unsqueeze(0)
     image = torch.randn(1, 3, 512, 512)
     s = time.time()
     model.forward(image)
