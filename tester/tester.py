@@ -161,11 +161,11 @@ class HGSegmentEval(BaseEval):
                 predicted_prob_ = np.asarray(predicted_prob_, dtype=np.uint8)
 
                 # plot
-                # fig, ax = plt.subplots(1, 3)
-                # ax[0].imshow(image.cpu().numpy()[0].transpose(1, 2, 0))
-                # ax[1].imshow(mask.cpu()[0][0])
-                # ax[2].imshow(predicted_prob_)
-                # plt.show()
+                fig, ax = plt.subplots(1, 3)
+                ax[0].imshow(image.cpu().numpy()[0].transpose(1, 2, 0))
+                ax[1].imshow(mask.cpu()[0][0])
+                ax[2].imshow(predicted_prob_)
+                plt.show()
 
                 # save
                 # cv2.imwrite(str(self.output_dir / (image_name[0] + '.png')), predicted_prob_)

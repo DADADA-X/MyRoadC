@@ -68,6 +68,63 @@ class Rescale:
         return sample
 
 
+class RandomCrop2:
+    """Crop randomly the image in a sample.
+
+    Args:
+        output_size (tuple or int): Desired output size. If int, square crop
+            is made.
+    """
+
+    def __init__(self, output_size):
+        assert isinstance(output_size, (int, tuple))
+        if isinstance(output_size, int):
+            self.output_size = (output_size, output_size)
+        else:
+            assert len(output_size) == 2
+            self.output_size = output_size
+
+    def __call__(self, sample):
+        h, w = sample['image'].shape[:2]
+        new_h, new_w = self.output_size
+        new_h_2, new_w_2 = new_h // 2, new_w // 2
+        new_h_4, new_w_4 = new_h // 4, new_w // 4
+
+        i, top, left = 0, 0, 0
+        for i in range(10):
+            top = np.random.randint(0, h - new_h)
+            left = np.random.randint(0, w - new_w)
+
+            if np.any(sample['image'][top: top + new_h, left: left + new_w]):
+                break
+
+        if i == 9:
+            max = 0
+            for t, l in [(x, y) for x in [0, 256] for y in [0, 256]]:
+                if (sample['image'][t:t+256, l:l+256]).sum() > max:
+                    max = (sample['image'][t:t+256, l:l+256]).sum()
+                    top, left = t, l
+        top_2 = top // 2
+        left_2 = left // 2
+        top_4 = top // 4
+        left_4 = left // 4
+
+        for k in sample.keys():
+            if k == 'image_name':
+                continue
+            elif '_4' in k:
+                sample[k] = sample[k][top_4: top_4 + new_h_4,
+                left_4: left_4 + new_w_4]
+            elif '_2' in k:
+                sample[k] = sample[k][top_2: top_2 + new_h_2,
+                left_2: left_2 + new_w_2]
+            else:
+                sample[k] = sample[k][top: top + new_h,
+                            left: left + new_w]
+
+        return sample
+
+
 class RandomCrop:
     """Crop randomly the image in a sample.
 
