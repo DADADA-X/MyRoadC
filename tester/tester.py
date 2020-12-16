@@ -56,6 +56,54 @@ class SegmentEval(BaseEval):
             self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics[i].item() / n_samples * 100))
 
 
+class DSegmentEval(BaseEval):
+    def __init__(self, model, config, data_loader, output_dir):
+        super(DSegmentEval, self).__init__(model, config)
+        self.data_loader = data_loader
+
+        self.criterion = dice_bce_loss
+        self.metric_ftns = [IoU, relaxed_IoU]
+
+        self.total_loss = torch.tensor(0.).to(self.device)
+        self.total_metrics = torch.zeros(len(self.metric_ftns)).to(self.device)
+
+        self.output_dir = output_dir
+        if not self.output_dir.exists():
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def test(self):
+        self.model.eval()
+
+        with torch.no_grad():
+            for i, data in enumerate(tqdm(self.data_loader)):
+                image_name, image, mask = data.values()
+                image = image.to(self.device)
+                mask = mask.to(self.device)
+
+                output = self.model(image)
+
+                # save smple images
+                predicted_prob = torch.sigmoid(output) > 0.5
+                predicted_prob_ = predicted_prob.squeeze().cpu().numpy() * 255
+                predicted_prob_ = np.asarray(predicted_prob_, dtype=np.uint8)
+
+                # plot
+                # plt.imshow(predicted_prob_)
+                # plt.show()
+
+                # save
+                cv2.imwrite(str(self.output_dir / (image_name[0] + '.png')), predicted_prob_)
+
+                self.total_loss += self.criterion(output, mask)
+                for i, metric in enumerate(self.metric_ftns):
+                    self.total_metrics[i] += metric(output, mask)
+
+        n_samples = len(self.data_loader.sampler)
+        self.logger.info("loss: {:.4f}".format(self.total_loss.item() / n_samples))
+        for i, metric in enumerate(self.metric_ftns):
+            self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics[i].item() / n_samples * 100))
+
+
 class MTLEval(BaseEval):
     def __init__(self, model, config, data_loader, output_dir):
         super(MTLEval, self).__init__(model, config)

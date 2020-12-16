@@ -28,11 +28,28 @@ def rIoU(pred, gt):
     return miou[1]
 
 
+def IoU(pred, gt):
+    with torch.no_grad():
+        b, c, h, w = pred.shape
+        if c == 1:
+            pred_ = pred.sigmoid().cpu().numpy() > 0.5
+        else:
+            pred_ = torch.argmax(pred, dim=1).cpu().numpy()[:, np.newaxis, :, :]
+        gt_ = gt.cpu().numpy()
+        intersection = np.logical_and(gt_, pred_)
+        union = np.logical_or(gt_, pred_)
+        if union.sum() == 0:
+            iou_score = 1
+        else:
+            iou_score = intersection.sum() / union.sum()
+    return iou_score
+
+
 def relaxed_IoU(pred, gt):
     with torch.no_grad():
         b, c, h, w = pred.shape
         if c == 1:
-            pred_ = pred.sigmoid().cpu().numpy()
+            pred_ = pred.sigmoid().cpu().numpy() > 0.5
         else:
             pred_ = torch.argmax(pred, dim=1).cpu().numpy()[:, np.newaxis, :, :]
         gt_ = gt.cpu().numpy()
