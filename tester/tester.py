@@ -449,6 +449,86 @@ class XGEval(BaseEval):
             self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics_mask[i].item() / n_samples * 100))
 
 
+class ImproveEval(BaseEval):
+    def __init__(self, model, config, data_loader, output_dir):
+        super(ImproveEval, self).__init__(model, config)
+        self.data_loader = data_loader
+
+        self.criterion_mask = soft_iou_loss
+        self.criterion_conn = ce_loss
+
+        self.metric_ftns_mask = [rIoU, relaxed_IoU]
+        self.metric_ftns_conn = mIoU
+
+        self.total_loss_mask = torch.tensor(0.).to(self.device)
+        self.total_loss_conn = torch.tensor(0.).to(self.device)
+        self.total_metrics_mask = torch.zeros(len(self.metric_ftns_mask)).to(self.device)
+        self.total_metrics_conn = torch.tensor(0.).to(self.device)
+
+        self.output_dir = output_dir
+        for cat in ['mask', 'orient']:
+            output_dir_ = output_dir / cat
+            if not output_dir_.exists():
+                output_dir_.mkdir(parents=True, exist_ok=True)
+
+    def test(self):
+        self.model.eval()
+        a = []
+        with torch.no_grad():
+            for i, data in enumerate(tqdm(self.data_loader)):
+                image_name, image, mask, mask_2, mask_4, conn, conn_2, conn_4 = data.values()
+                image = image.to(self.device)
+                mask = mask.to(self.device)
+                mask_2 = mask_2.to(self.device)
+                mask_4 = mask_4.to(self.device)
+                conn = conn.to(self.device)
+                conn_2 = conn_2.to(self.device)
+                conn_4 = conn_4.to(self.device)
+
+                output1, output2 = self.model(image)
+
+                # save smple images
+                prob_m = torch.argmax(output1[-1], dim=1)
+                prob_m_ = prob_m.squeeze().cpu().numpy() * 255
+                prob_m_ = np.asarray(prob_m_, dtype=np.uint8)
+
+                prob_c = torch.argmax(output2[-1], dim=1)
+                prob_c_ = prob_c.squeeze().cpu().numpy()
+                prob_c_ = np.asarray(prob_c_, dtype=np.uint8)
+
+                # plot
+                # fig, ax = plt.subplots(1, 4)
+                # ax[0].imshow(image.cpu().numpy()[0].transpose(1, 2, 0))
+                # ax[0].axis('off')
+                # ax[1].imshow(mask.cpu()[0][0], cmap='gray')
+                # ax[1].axis('off')
+                # ax[2].imshow(np.logical_not(prob_m_), cmap='gray')
+                # ax[2].axis('off')
+                # ax[3].imshow(prob_c_, cmap='jet')
+                # ax[3].axis('off')
+                # plt.show()
+
+                # stat conn
+                a.extend(Counter(prob_c_.flatten()).keys())
+
+                cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
+                # cv2.imwrite(str(self.output_dir / "conn" / (image_name[0] + '.png')), prob_m_)
+
+                self.total_loss_mask += self.criterion_mask(output1[-1], mask)
+                self.total_loss_conn += self.criterion_conn(output2[-1], conn)
+                for i, metric in enumerate(self.metric_ftns_mask):
+                    self.total_metrics_mask[i] += metric(output1[-1], mask)
+                self.total_metrics_conn += self.metric_ftns_conn(output2[-1], conn)
+
+        print(set(a))
+
+        n_samples = len(self.data_loader.sampler)
+        self.logger.info("loss_mask: {:.4f}".format(self.total_loss_mask.item() / n_samples))
+        self.logger.info("loss_conn: {:.4f}".format(self.total_loss_conn.item() / n_samples))
+        for i, metric in enumerate(self.metric_ftns_mask):
+            self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics_mask[i].item() / n_samples * 100))
+        self.logger.info("IoU_conn: {:.2f}%".format( self.total_metrics_conn.item() / n_samples * 100))
+
 
 # todo just for test
 # class SegmentEval(BaseEval):
