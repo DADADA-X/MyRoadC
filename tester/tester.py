@@ -204,21 +204,21 @@ class HGSegmentEval(BaseEval):
                 outputs = self.model(image)
 
                 # save smple images
-                predicted_prob = torch.argmax(outputs[:-1], dim=1)
+                predicted_prob = torch.argmax(outputs[-1], dim=1)
                 predicted_prob_ = predicted_prob.squeeze().cpu().numpy() * 255
                 predicted_prob_ = np.asarray(predicted_prob_, dtype=np.uint8)
 
                 # plot
-                fig, ax = plt.subplots(1, 3)
-                ax[0].imshow(image.cpu().numpy()[0].transpose(1, 2, 0))
-                ax[1].imshow(mask.cpu()[0][0])
-                ax[2].imshow(predicted_prob_)
-                plt.show()
+                # fig, ax = plt.subplots(1, 3)
+                # ax[0].imshow(image.cpu().numpy()[0].transpose(1, 2, 0))
+                # ax[1].imshow(mask.cpu()[0][0])
+                # ax[2].imshow(predicted_prob_)
+                # plt.show()
 
                 # save
-                # cv2.imwrite(str(self.output_dir / (image_name[0] + '.png')), predicted_prob_)
+                cv2.imwrite(str(self.output_dir / (image_name[0] + '.png')), predicted_prob_)
 
-                self.total_loss += self.criterion(outputs[:-1], mask)
+                self.total_loss += self.criterion(outputs[-1], mask)
                 for i, metric in enumerate(self.metric_ftns):
                     self.total_metrics[i] += metric(outputs[-1], mask)
 
@@ -259,6 +259,9 @@ class HGMTLEval(BaseEval):
                 image = image.to(self.device)
                 mask = mask.to(self.device)
                 conn = conn.to(self.device)
+
+                if image_name[0] == 'RGB-PanSharpen_AOI_2_Vegas_img100_2':
+                    print('lalala')
 
                 output1, output2 = self.model(image)
 
@@ -384,6 +387,68 @@ class MTLEval3(BaseEval):
             self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics_mask[i].item() / n_samples * 100))
         self.logger.info("MSE_cline: {:.2f}".format( self.total_metrics_cline.item() / n_samples ))
         self.logger.info("MSE_point: {:.2f}".format( self.total_metrics_point.item() / n_samples))
+
+
+class XGEval(BaseEval):
+    def __init__(self, model, config, data_loader, output_dir):
+        super(XGEval, self).__init__(model, config)
+        self.data_loader = data_loader
+
+        self.criterion_mask = balanced_bce_loss
+        self.criterion_edge = balanced_bce_loss
+        self.criterion_region = balanced_bce_loss
+        self.criterion_direct = balanced_ce_loss
+
+        self.metric_ftns_mask = [IoU, relaxed_IoU]
+
+        self.total_loss_mask = torch.tensor(0.).to(self.device)
+        self.total_metrics_mask = torch.zeros(len(self.metric_ftns_mask)).to(self.device)
+
+        self.output_dir = output_dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    def test(self):
+        self.model.eval()
+        with torch.no_grad():
+            for i, data in enumerate(tqdm(self.data_loader)):
+                image_name, image, mask, edge, mini, direct = data.values()
+                image = image.to(self.device)
+                mask = mask.to(self.device)
+                edge = edge.to(self.device)
+                mini = mini.to(self.device)
+                direct = direct.to(self.device)
+
+                output_p, outputs_e, outputs_r, output_d = self.model(image)
+
+                # save smple images
+                prob_m = output_p.sigmoid() > 0.5  # todo
+                prob_m_ = prob_m.squeeze().cpu().numpy() * 255
+                prob_m_ = np.asarray(prob_m_, dtype=np.uint8)
+
+                prob_d = torch.argmax(output_d, dim=1) > 0
+                prob_d_ = prob_d.squeeze().cpu().numpy() * 255
+                prob_d_ = np.asarray(prob_d_, dtype=np.uint8)
+
+                # plot
+                # fig, ax = plt.subplots(1, 3)
+                # ax[0].imshow(mask.cpu().numpy()[0][0])
+                # ax[1].imshow(prob_m_)
+                # ax[2].imshow(prob_d_)
+                # plt.show()
+
+                # save
+                # cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
+
+                self.total_loss_mask += self.criterion_mask(output_p, mask)
+                for i, metric in enumerate(self.metric_ftns_mask):
+                    self.total_metrics_mask[i] += metric(output_d, mask)
+
+        n_samples = len(self.data_loader.sampler)
+        self.logger.info("loss_mask: {:.4f}".format(self.total_loss_mask.item() / n_samples))
+        for i, metric in enumerate(self.metric_ftns_mask):
+            self.logger.info("{}: {:.2f}%".format(metric.__name__, self.total_metrics_mask[i].item() / n_samples * 100))
+
+
 
 # todo just for test
 # class SegmentEval(BaseEval):

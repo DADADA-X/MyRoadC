@@ -84,6 +84,23 @@ def soft_dice_coeff(pred, gt):
     return 1 - score
 
 
+def balanced_bce_loss(pred, gt):
+    criterion = _get_balanced_sigmoid_cross_entropy(gt)
+    return criterion(pred.contiguous().view(-1), gt.contiguous().view(-1))
+
+
+def _get_balanced_sigmoid_cross_entropy(x):
+    """
+    bounded inverse class weighting.
+    """
+    count_neg = torch.sum(1. - x)
+    count_pos = torch.sum(x)
+    beta = count_pos / (count_neg + count_pos)
+    pos_weight = 1 / (beta+1e-8)
+    criterion = torch.nn.BCEWithLogitsLoss(reduction='mean', pos_weight=pos_weight)
+    return criterion
+
+
 if __name__ == '__main__':
     inputs = torch.randn(1, 1, 650, 650)
     target = torch.randint(0, 2, (1, 1, 650, 650)).float()

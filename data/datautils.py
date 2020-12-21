@@ -89,6 +89,7 @@ class RandomCrop2:
         new_h, new_w = self.output_size
         new_h_2, new_w_2 = new_h // 2, new_w // 2
         new_h_4, new_w_4 = new_h // 4, new_w // 4
+        new_h_16, new_w_16 = new_h // 16, new_w // 16
 
         i, top, left = 0, 0, 0
         for i in range(10):
@@ -108,6 +109,8 @@ class RandomCrop2:
         left_2 = left // 2
         top_4 = top // 4
         left_4 = left // 4
+        top_16 = top // 164
+        left_16 = left // 16
 
         for k in sample.keys():
             if k == 'image_name':
@@ -118,6 +121,9 @@ class RandomCrop2:
             elif '_2' in k:
                 sample[k] = sample[k][top_2: top_2 + new_h_2,
                 left_2: left_2 + new_w_2]
+            elif 'mini' in k:
+                sample[k] = sample[k][top_16: top_16 + new_h_16,
+                left_16: left_16 + new_w_16]
             else:
                 sample[k] = sample[k][top: top + new_h,
                             left: left + new_w]

@@ -29,8 +29,108 @@ class StackHourglass(BaseModel):
         ch = self.num_feats * self.block.expansion  # 256
         hg, res, fc, score, fc_, score_ = [], [], [], [], [], []
         for i in range(self.num_stacks):  # number of stacked-hourglass
-            hg.append(Hourglass(self.block, num_blocks, self.num_feats, depth))
-            res.append(self._make_residual(self.block, self.num_feats, num_blocks))
+            hg.append(Hourglass(self.block, num_blocks, self.num_feats, depth))  # todo
+            res.append(self._make_residual(self.block, self.num_feats, num_blocks))  # todo
+            fc.append(self._make_fc(ch, ch))
+            score.append(nn.Sequential(
+                nn.Conv2d(ch, ch // 4, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(ch // 4, self.heads[0], kernel_size=1)))
+            if i < num_stacks - 1:
+                fc_.append(nn.Conv2d(ch, ch, kernel_size=1))
+                score_.append(nn.Conv2d(self.heads[0], ch, kernel_size=1))
+        self.hg = nn.ModuleList(hg)
+        self.res = nn.ModuleList(res)
+        self.fc = nn.ModuleList(fc)
+        self.score = nn.ModuleList(score)
+        self.fc_ = nn.ModuleList(fc_)
+        self.score_ = nn.ModuleList(score_)
+
+        self.finalcls = nn.Sequential(
+            DecoderBlock(ch, 64),
+            nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1,
+                               output_padding=1),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(32, 32, kernel_size=3, padding=1),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.ConvTranspose2d(32, self.heads[0], kernel_size=2, stride=2)
+        )
+
+    def _make_residual(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes, planes * block.expansion,
+                          kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(planes * block.expansion)
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def _make_fc(self, inplanes, planes):
+        conv = nn.Conv2d(inplanes, planes, kernel_size=1)
+        bn = nn.BatchNorm2d(planes)
+        return nn.Sequential(conv, bn, self.relu)
+
+    def forward(self, x):
+        out = []
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+
+        x = self.layer1(x)
+        x = self.maxpool(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+
+        for i in range(self.num_stacks):
+            y = self.hg[i](x)
+            y = self.res[i](y)
+            y = self.fc[i](y)
+            score = self.score[i](y)
+            if len(self.heads) == 1:
+                out.append(score)
+            else:
+                out.append(torch.chunk(score, self.num_classes, dim=1))
+            if i < self.num_stacks - 1:
+                fc_ = self.fc_[i](y)
+                score_ = self.score_[i](score)
+                x = x + fc_ + score_
+
+        out.append(self.finalcls(y))
+
+        return out
+
+
+class MyStackHourglass(BaseModel):
+    def __init__(self, block, heads, depth, num_stacks, num_blocks):
+        super(MyStackHourglass, self).__init__()
+        self.inplanes = 64  # keep updating
+        self.num_feats = 128
+        self.block = eval(block)
+        self.heads = eval(heads)
+        self.num_stacks = num_stacks
+
+        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3)
+        self.bn1 = nn.BatchNorm2d(self.inplanes)
+        self.relu = nn.ReLU(inplace=True)
+        self.layer1 = self._make_residual(self.block, self.inplanes, 1)  # self.inplanes as plane in the function
+        self.layer2 = self._make_residual(self.block, self.inplanes, 1)
+        self.layer3 = self._make_residual(self.block, self.num_feats, 1)
+        self.maxpool = nn.MaxPool2d(2, stride=2)
+
+        # build hourglass modules
+        ch = self.num_feats * self.block.expansion  # 256
+        hg, res, fc, score, fc_, score_ = [], [], [], [], [], []
+        for i in range(self.num_stacks):  # number of stacked-hourglass
+            hg.append(MyHourglass(self.block, num_blocks, self.num_feats, depth))  # todo
+            res.append(self._make_residual(BasicBlock, self.num_feats, num_blocks))  # todo
             fc.append(self._make_fc(ch, ch))
             score.append(nn.Sequential(
                 nn.Conv2d(ch, ch // 4, kernel_size=3, padding=1),
@@ -131,8 +231,8 @@ class MHStackHourglass(BaseModel):
         score_1, fc_1_, score_1_ = [], [], []
         score_2, fc_2_, score_2_ = [], [], []
         for i in range(self.num_stacks):  # number of stacked-hourglass
-            hg.append(Hourglass(self.block, num_blocks, self.num_feats, depth))
-            res.append(self._make_residual(self.block, self.num_feats, num_blocks))
+            hg.append(Hourglass(self.block, num_blocks, self.num_feats, depth))  # todo test hg architecture
+            res.append(self._make_residual(self.block, self.num_feats, num_blocks))  # todo block
             fc.append(self._make_fc(ch, ch))
             score_1.append(nn.Sequential(
                 nn.Conv2d(ch, ch // 4, kernel_size=3, padding=1),
@@ -531,6 +631,48 @@ class Hourglass(nn.Module):
         else:
             low2 = self.hg[n - 1][3](low1)
         low3 = self.hg[n - 1][2](low2)
+        up2 = F.interpolate(low3, scale_factor=2)
+        out = up1 + up2
+        return out
+
+    def forward(self, x):
+        return self._hour_glass_forward(self.depth, x)
+
+
+class MyHourglass(nn.Module):
+    def __init__(self, block, num_blocks, planes, depth):
+        super(MyHourglass, self).__init__()
+        self.depth = depth  # hourglass order
+        self.block = block
+        self.hg = self._make_hour_glass(block, num_blocks, planes, depth)
+
+    def _make_residual(self, block, num_blocks, planes):
+        layers = []
+        for i in range(0, num_blocks):
+            layers.append(block(planes * block.expansion, planes))
+        return nn.Sequential(*layers)
+
+    def _make_hour_glass(self, block, num_blocks, planes, depth):
+        hg = []
+        for i in range(depth):
+            res = []
+            res.append(self._make_residual(block, num_blocks, planes))
+            res.append(self._make_residual(BasicBlock, num_blocks, planes))
+            if i == 0:
+                res.append(self._make_residual(block, num_blocks, planes))
+            hg.append(nn.ModuleList(res))
+        return nn.ModuleList(hg)
+
+    def _hour_glass_forward(self, n, x):
+        up1 = x  # n order, starting from the outermost
+        low1 = F.max_pool2d(x, 2, stride=2)
+        low1 = self.hg[n - 1][0](low1)
+
+        if n > 1:
+            low2 = self._hour_glass_forward(n - 1, low1)
+        else:
+            low2 = self.hg[n - 1][2](low1)
+        low3 = self.hg[n - 1][1](low2)
         up2 = F.interpolate(low3, scale_factor=2)
         out = up1 + up2
         return out

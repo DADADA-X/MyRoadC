@@ -400,6 +400,148 @@ class HGSegmentTrainer(BaseTrainer):
         return base.format(current, total, 100.0 * current / total)
 
 
+# class HGMTLTrainer(BaseTrainer):
+#     def __init__(self, model, optimizer, config, data_loader, valid_data_loader=None, lr_scheduler=None):
+#         super(HGMTLTrainer, self).__init__(model, optimizer, config)
+#         self.data_loader = data_loader
+#         self.len_epoch = len(self.data_loader)
+#         self.valid_data_loader = valid_data_loader
+#         self.do_validation = self.valid_data_loader is not None
+#         self.lr_scheduler = lr_scheduler
+#
+#         self.log_step = 1
+#         self.criterion_mask = soft_iou_loss
+#         self.criterion_conn = balanced_ce_loss
+#
+#         self.metric_ftns_mask = [rIoU]
+#         self.metric_ftns_conn = [mIoU]
+#
+#         self.train_metrics_mask = MetricTracker('loss_mask', *[m.__name__ + '_mask' for m in self.metric_ftns_mask],
+#                                                 writer=self.writer)
+#         self.train_metrics_conn = MetricTracker('loss_conn', *[m.__name__ + '_conn' for m in self.metric_ftns_conn],
+#                                                 writer=self.writer)
+#
+#         self.valid_metrics_mask = MetricTracker('loss_mask', *[m.__name__ + '_mask' for m in self.metric_ftns_mask],
+#                                                 writer=self.writer)
+#         self.valid_metrics_conn = MetricTracker('loss_conn', *[m.__name__ + '_conn' for m in self.metric_ftns_conn],
+#                                                 writer=self.writer)
+#
+#     def _train_epoch(self, epoch):
+#         self.model.train()
+#         self.train_metrics_mask.reset()
+#         self.valid_metrics_conn.reset()
+#
+#         for batch_idx, data in enumerate(self.data_loader):
+#             step = (epoch - 1) * self.len_epoch + batch_idx
+#             image_name, image, mask, mask_4, conn, conn_4 = data.values()
+#             image = image.to(self.device)
+#             mask = mask.to(self.device)
+#             mask_4 = mask_4.to(self.device)
+#             conn = conn.to(self.device)
+#             conn_4 = conn_4.to(self.device)
+#
+#             self.optimizer.zero_grad()
+#             output1, output2 = self.model(image)
+#
+#             loss_mask = self.criterion_mask(output1[-1], mask)
+#             for output in output1[:-1]:
+#                 loss_mask += self.criterion_mask(output, mask_4)
+#
+#             loss_conn = self.criterion_conn(output2[-1], conn)
+#             for output in output2[:-1]:
+#                 loss_conn += self.criterion_conn(output, conn_4)
+#
+#             loss_total = loss_mask + loss_conn
+#             loss_total.backward()
+#             self.optimizer.step()
+#
+#             self.writer.set_step(step)
+#
+#             self.train_metrics_mask.update('loss_mask', loss_mask.item())
+#             self.train_metrics_conn.update('loss_conn', loss_conn.item())
+#
+#             for met in self.metric_ftns_mask:
+#                 self.train_metrics_mask.update(met.__name__ + '_mask', met(output1[-1], mask))
+#             for met in self.metric_ftns_conn:
+#                 self.train_metrics_conn.update(met.__name__ + '_conn', met(output2[-1], conn))
+#
+#             if batch_idx % self.log_step == 0:
+#                 self.logger.info('Train Epoch: {} {} Total_Loss: {:.6f} Loss_Mask: {:.6f} '
+#                                  'Loss_Conn: {:.6f}'.format(
+#                     epoch,
+#                     self._progress(batch_idx, self.data_loader),
+#                     loss_total.item(),
+#                     loss_mask.item(),
+#                     loss_conn.item()))
+#
+#         log_mask = self.train_metrics_mask.result()  # average
+#         log_conn = self.train_metrics_conn.result()
+#
+#         if self.do_validation:
+#             val_log = self._valid_epoch(epoch)
+#             log_mask.update(**{'val_' + k: v for k, v in val_log.items() if 'mask' in k})
+#             log_conn.update(**{'val_' + k: v for k, v in val_log.items() if 'conn' in k})
+#
+#         if self.lr_scheduler is not None:
+#             self.lr_scheduler.step()
+#
+#         return {**log_mask, **log_conn}
+#
+#     def _valid_epoch(self, epoch):
+#         self.model.eval()
+#         self.valid_metrics_mask.reset()
+#         self.valid_metrics_conn.reset()
+#         with torch.no_grad():
+#             for batch_idx, data in enumerate(self.valid_data_loader):
+#                 step = (epoch - 1) * len(self.valid_data_loader) + batch_idx
+#                 image_name, image, mask, mask_4, conn, conn_4 = data.values()
+#                 image = image.to(self.device)
+#                 mask = mask.to(self.device)
+#                 mask_4 = mask_4.to(self.device)
+#                 conn = conn.to(self.device)
+#                 conn_4 = conn_4.to(self.device)
+#
+#                 output1, output2 = self.model(image)
+#
+#                 loss_mask = self.criterion_mask(output1[-1], mask)
+#                 for output in output1[:-1]:
+#                     loss_mask += self.criterion_mask(output, mask_4)
+#
+#                 loss_conn = self.criterion_conn(output2[-1], conn)
+#                 for output in output2[:-1]:
+#                     loss_conn += self.criterion_conn(output, conn_4)
+#
+#                 loss_total = loss_mask + loss_conn
+#
+#                 self.writer.set_step(step, 'valid')
+#                 self.valid_metrics_mask.update('loss_mask', loss_mask.item())
+#                 self.valid_metrics_conn.update('loss_conn', loss_conn.item())
+#
+#                 for met in self.metric_ftns_mask:
+#                     self.valid_metrics_mask.update(met.__name__ + '_mask', met(output1[-1], mask))
+#                 for met in self.metric_ftns_conn:
+#                     self.valid_metrics_conn.update(met.__name__ + '_conn', met(output2[-1], conn))
+#
+#                 self.logger.info('Valid Epoch: {} {} Total_Loss: {:.6f} Loss_Mask: {:.6f} '
+#                                  'Loss_Conn: {:.6f}'.format(
+#                     epoch,
+#                     self._progress(batch_idx, self.valid_data_loader),
+#                     loss_total.item(),
+#                     loss_mask.item(),
+#                     loss_conn.item()))
+#
+#         for name, p in self.model.named_parameters():
+#             self.writer.add_histogram(name, p, bins='auto')
+#
+#         valid_metrics = {**self.valid_metrics_mask.result(), **self.valid_metrics_conn.result()}
+#
+#         return valid_metrics
+#
+#     def _progress(self, batch_idx, data_loader):
+#         base = '[{:2d}/{:2d} ({:2.0f}%)]'
+#         current = batch_idx * data_loader.batch_size
+#         total = data_loader.n_samples
+#         return base.format(current, total, 100.0 * current / total)
 class HGMTLTrainer(BaseTrainer):
     def __init__(self, model, optimizer, config, data_loader, valid_data_loader=None, lr_scheduler=None):
         super(HGMTLTrainer, self).__init__(model, optimizer, config)
@@ -444,12 +586,7 @@ class HGMTLTrainer(BaseTrainer):
             output1, output2 = self.model(image)
 
             loss_mask = self.criterion_mask(output1[-1], mask)
-            for output in output1[:-1]:
-                loss_mask += self.criterion_mask(output, mask_4)
-
             loss_conn = self.criterion_conn(output2[-1], conn)
-            for output in output2[:-1]:
-                loss_conn += self.criterion_conn(output, conn_4)
 
             loss_total = loss_mask + loss_conn
             loss_total.backward()
@@ -504,12 +641,8 @@ class HGMTLTrainer(BaseTrainer):
                 output1, output2 = self.model(image)
 
                 loss_mask = self.criterion_mask(output1[-1], mask)
-                for output in output1[:-1]:
-                    loss_mask += self.criterion_mask(output, mask_4)
 
                 loss_conn = self.criterion_conn(output2[-1], conn)
-                for output in output2[:-1]:
-                    loss_conn += self.criterion_conn(output, conn_4)
 
                 loss_total = loss_mask + loss_conn
 
@@ -839,6 +972,158 @@ class ImproveTrainer(BaseTrainer):
             self.writer.add_histogram(name, p, bins='auto')
 
         valid_metrics = {**self.valid_metrics_mask.result(), **self.valid_metrics_conn.result()}
+
+        return valid_metrics
+
+    def _progress(self, batch_idx, data_loader):
+        base = '[{:2d}/{:2d} ({:2.0f}%)]'
+        current = batch_idx * data_loader.batch_size
+        total = data_loader.n_samples
+        return base.format(current, total, 100.0 * current / total)
+
+
+class XGTrainer(BaseTrainer):
+    def __init__(self, model, optimizer, config, data_loader, valid_data_loader=None, lr_scheduler=None):
+        super(XGTrainer, self).__init__(model, optimizer, config)
+        self.data_loader = data_loader
+        self.len_epoch = len(self.data_loader)
+        self.valid_data_loader = valid_data_loader
+        self.do_validation = self.valid_data_loader is not None
+        self.lr_scheduler = lr_scheduler
+
+        self.log_step = 1
+        self.criterion_mask = balanced_bce_loss
+        self.criterion_edge = balanced_bce_loss
+        self.criterion_region = balanced_bce_loss
+        self.criterion_direct = balanced_ce_loss
+
+        self.metric_ftns_mask = [IoU]
+        self.metric_ftns_direct = [IoU]
+
+        self.train_metrics_mask = MetricTracker('loss_mask', *[m.__name__ + '_mask' for m in self.metric_ftns_mask],
+                                                writer=self.writer)
+        self.train_metrics_direct = MetricTracker('loss_direct', *[m.__name__ + '_direct' for m in self.metric_ftns_direct],
+                                                writer=self.writer)
+
+        self.valid_metrics_mask = MetricTracker('loss_mask', *[m.__name__ + '_mask' for m in self.metric_ftns_mask],
+                                                writer=self.writer)
+        self.valid_metrics_direct = MetricTracker('loss_direct', *[m.__name__ + '_direct' for m in self.metric_ftns_direct],
+                                                writer=self.writer)
+
+    def _train_epoch(self, epoch):
+        self.model.train()
+        self.train_metrics_mask.reset()
+        self.train_metrics_direct.reset()
+
+        for batch_idx, data in enumerate(self.data_loader):
+            step = (epoch - 1) * self.len_epoch + batch_idx
+            image_name, image, mask, edge, mini, direct = data.values()
+            image = image.to(self.device)
+            mask = mask.to(self.device)
+            edge = edge.to(self.device)
+            mini = mini.to(self.device)
+            direct = direct.to(self.device)
+
+            self.optimizer.zero_grad()
+            output_p, outputs_e, outputs_r, output_d = self.model(image)
+            loss_mask = self.criterion_mask(output_p, mask)
+            loss_edge = torch.tensor(0.).cuda()
+            for output in outputs_e:
+                loss_edge += self.criterion_edge(output, edge)
+            loss_region = torch.tensor(0.).cuda()
+            for output in outputs_r:
+                loss_region += self.criterion_region(output, mini)
+            loss_direct = self.criterion_direct(output_d, direct)
+            loss_total = loss_mask + loss_edge + loss_region + loss_direct
+
+            # loss_total.backward()
+            loss_total.backward()
+            self.optimizer.step()
+
+            self.writer.set_step(step)
+
+            self.train_metrics_mask.update('loss_mask', loss_mask.item())
+            self.train_metrics_direct.update('loss_direct', loss_direct.item())
+
+            for met in self.metric_ftns_mask:
+                self.train_metrics_mask.update(met.__name__ + '_mask', met(output_p, mask))
+            for met in self.metric_ftns_direct:
+                self.train_metrics_direct.update(met.__name__ + '_direct', met(output_d, mask))
+
+            if batch_idx % self.log_step == 0:
+                self.logger.info('Train Epoch: {} {} Total_Loss: {:.6f} Loss_Mask: {:.6f} '
+                                 'Loss_Edge: {:.6f} Loss_Region: {:.6f} Loss_Direct: {:.6f}'.format(
+                    epoch,
+                    self._progress(batch_idx, self.data_loader),
+                    loss_total.item(),
+                    loss_mask.item(),
+                    loss_edge.item(),
+                    loss_region.item(),
+                    loss_direct.item()
+                ))
+
+        log_mask = self.train_metrics_mask.result()  # average
+        log_direct = self.train_metrics_direct.result()  # average
+
+        if self.do_validation:
+            val_log = self._valid_epoch(epoch)
+            log_mask.update(**{'val_' + k: v for k, v in val_log.items() if 'mask' in k})
+            log_direct.update(**{'val_' + k: v for k, v in val_log.items() if 'direct' in k})
+
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.step()
+
+        return {**log_mask, **log_direct}
+
+    def _valid_epoch(self, epoch):
+        self.model.eval()
+        self.valid_metrics_mask.reset()
+        self.valid_metrics_direct.reset()
+        with torch.no_grad():
+            for batch_idx, data in enumerate(self.valid_data_loader):
+                step = (epoch - 1) * len(self.valid_data_loader) + batch_idx
+                image_name, image, mask, edge, mini, direct = data.values()
+                image = image.to(self.device)
+                mask = mask.to(self.device)
+                edge = edge.to(self.device)
+                mini = mini.to(self.device)
+                direct = direct.to(self.device)
+
+                output_p, outputs_e, outputs_r, output_d = self.model(image)
+
+                loss_mask = self.criterion_mask(output_p, mask)
+                loss_edge = torch.tensor(0.).cuda()
+                for output in outputs_e:
+                    loss_edge += self.criterion_edge(output, edge)
+                loss_region = torch.tensor(0.).cuda()
+                for output in outputs_r:
+                    loss_region += self.criterion_region(output, mini)
+                loss_direct = self.criterion_direct(output_d, direct)
+                loss_total = loss_mask + loss_edge + loss_region + loss_direct
+
+                self.writer.set_step(step, 'valid')
+                self.valid_metrics_mask.update('loss_mask', loss_mask.item())
+                self.valid_metrics_direct.update('loss_direct', loss_direct.item())
+
+                for met in self.metric_ftns_mask:
+                    self.valid_metrics_mask.update(met.__name__ + '_mask', met(output_p, mask))
+                for met in self.metric_ftns_direct:
+                    self.valid_metrics_direct.update(met.__name__ + '_direct', met(output_d, mask))
+
+                self.logger.info('Valid Epoch: {} {} Total_Loss: {:.6f} Loss_Mask: {:.6f} '
+                                 'Loss_Edge: {:.6f} Loss_Region: {:.6f} Loss_Direct: {:.6f}'.format(
+                    epoch,
+                    self._progress(batch_idx, self.valid_data_loader),
+                    loss_total.item(),
+                    loss_mask.item(),
+                    loss_edge.item(),
+                    loss_region.item(),
+                    loss_direct.item()))
+
+        for name, p in self.model.named_parameters():
+            self.writer.add_histogram(name, p, bins='auto')
+
+        valid_metrics = {**self.valid_metrics_mask.result(), **self.valid_metrics_direct.result()}
 
         return valid_metrics
 

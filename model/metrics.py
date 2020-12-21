@@ -34,7 +34,7 @@ def IoU(pred, gt):
         if c == 1:
             pred_ = pred.sigmoid().cpu().numpy() > 0.5
         else:
-            pred_ = torch.argmax(pred, dim=1).cpu().numpy()[:, np.newaxis, :, :]
+            pred_ = torch.argmax(pred, dim=1).cpu().numpy()[:, np.newaxis, :, :] > 0
         gt_ = gt.cpu().numpy()
         intersection = np.logical_and(gt_, pred_)
         union = np.logical_or(gt_, pred_)
@@ -51,7 +51,7 @@ def relaxed_IoU(pred, gt):
         if c == 1:
             pred_ = pred.sigmoid().cpu().numpy() > 0.5
         else:
-            pred_ = torch.argmax(pred, dim=1).cpu().numpy()[:, np.newaxis, :, :]
+            pred_ = torch.argmax(pred, dim=1).cpu().numpy()[:, np.newaxis, :, :] > 0
         gt_ = gt.cpu().numpy()
         kernel = np.ones((4, 4))
         dilated_gt = []

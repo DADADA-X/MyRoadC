@@ -554,14 +554,117 @@ class MTLDataset3(BaseDataset):
         return sample
 
 
+class XGDataset(BaseDataset):
+    """
+    [image, mask, centerline, point] for 3-task learning.
+    """
+
+    def __init__(self, datasets_root, image_root, mask_root, edge_root, mini_root, direct_root, data_aug_prob, mean, std, seed):
+        super(XGDataset, self).__init__(seed)
+        self.datasets_root = Path(datasets_root)
+        self.image_root = self.datasets_root / image_root
+        self.mask_root = self.datasets_root / mask_root
+        self.edge_root = self.datasets_root / edge_root
+        self.mini_root = self.datasets_root / mini_root
+        self.direct_root = self.datasets_root / direct_root
+
+        # Preparing images and labels filename lists.
+        image_list = util.get_fname_list(self.image_root)
+        mask_list = util.get_fname_list(self.mask_root, suffix='*.png')
+        edge_list = util.get_fname_list(self.edge_root, suffix='*.png')
+        mini_list = util.get_fname_list(self.mini_root, suffix='*.png')
+        direct_list = util.get_fname_list(self.direct_root, suffix='*.png')
+
+        image_names = pd.DataFrame({'image_fname': image_list})
+        mask_names = pd.DataFrame({'mask_fname': mask_list})
+        edge_names = pd.DataFrame({'edge_fname': edge_list})
+        mini_names = pd.DataFrame({'mini_fname': mini_list})
+        direct_names = pd.DataFrame({'direct_fname': direct_list})
+
+        image_names['match_substr'] = [Path(f).stem for f in image_list]
+        mask_names['match_substr'] = [Path(f).stem for f in mask_list]
+        edge_names['match_substr'] = [Path(f).stem for f in edge_list]
+        mini_names['match_substr'] = [Path(f).stem for f in mini_list]
+        direct_names['match_substr'] = [Path(f).stem for f in direct_list]
+
+        self.match_df = image_names.merge(mask_names, on='match_substr', how='inner').merge(
+            edge_names, on='match_substr', how='inner').merge(
+            mini_names, on='match_substr', how='inner').merge(
+            direct_names, on='match_substr', how='inner')
+
+        # mean & std
+        self.mean = eval(mean)
+        self.std = eval(std)
+        self.normalize = transforms.Normalize(self.mean, self.std)
+
+        self.data_aug_prob = data_aug_prob
+        self.transform = None
+        if self.data_aug_prob > 0:
+            self.transform = transforms.Compose([
+                util.RandomCrop2(crop_size),
+                util.RandomHorizontalFlip(self.data_aug_prob),
+                util.RandomVerticleFlip(self.data_aug_prob),
+                util.RandomRotate90(self.data_aug_prob)
+            ])
+
+    def __len__(self):
+        """Return the total size of the dataset."""
+        return len(self.match_df)
+
+    def __getitem__(self, idx):
+        """Return a data pair."""
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        # Loading a image given a random integer index
+        image_src = self.match_df.loc[idx, 'image_fname']
+        image_name = self.match_df.loc[idx, 'match_substr']
+        image = cv2.imread(image_src, cv2.IMREAD_UNCHANGED)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # Corresponding to the given image
+        mask_src = self.match_df.loc[idx, 'mask_fname']
+        mask = cv2.imread(mask_src, cv2.IMREAD_GRAYSCALE)
+        edge_src = self.match_df.loc[idx, 'edge_fname']
+        edge = cv2.imread(edge_src, cv2.IMREAD_GRAYSCALE)
+        mini_src = self.match_df.loc[idx, 'mini_fname']
+        mini = cv2.imread(mini_src, cv2.IMREAD_GRAYSCALE)
+        direct_src = self.match_df.loc[idx, 'direct_fname']
+        direct = cv2.imread(direct_src, cv2.IMREAD_GRAYSCALE)
+
+        sample = {'image_name': image_name,
+                  'image': image,
+                  'mask': mask,
+                  'edge': edge,
+                  'mini': mini,
+                  'direct': direct}
+
+        # Online Data Augmentation
+        if self.transform:
+            sample = self.transform(sample)
+
+        _, sample['mask'] = cv2.threshold(sample['mask'], 127, 1, cv2.THRESH_BINARY)
+        _, sample['edge'] = cv2.threshold(sample['edge'], 127, 1, cv2.THRESH_BINARY)
+        _, sample['mini'] = cv2.threshold(sample['mini'], 127, 1, cv2.THRESH_BINARY)
+
+        # totensor
+        totensor = util.ToTensor()
+        sample = totensor(sample)
+
+        sample['image'] = self.normalize(sample['image'])
+
+        return sample
+
+
 if __name__ == '__main__':
-    dataset = MTLHGDataset(
-        datasets_root="/home/data/xyj/SpaceNet_ori/valid",
+    dataset = XGDataset(
+        datasets_root="/home/data/xyj/spacenet/valid",
         image_root="images",
         mask_root="masks",
-        conn_root="conns",
-        conn_4_root="conns_4",
-        data_aug_prob=0.5,
+        edge_root="edge",
+        mini_root="mini",
+        direct_root="direct",
+        data_aug_prob=0,
         mean="[0.334, 0.329, 0.326]",
         std="[0.161, 0.153, 0.144]",
         seed=1234
