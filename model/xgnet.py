@@ -193,43 +193,43 @@ class ImprovedXGNet(BaseModel):
         self.out_p = nn.Sequential(nn.Conv2d(32, 32, 3, padding=1), nn.ReLU(inplace=True), nn.Conv2d(32, 1, 1))
 
         # edge
-        self.edge_0_1 = nn.Conv2d(64, 32, 3, padding=1)
-        self.edge_0_2 = nn.Conv2d(32, 1, 3, padding=1)
-        self.edge_1_1 = nn.Conv2d(256, 32, 3, padding=1)
-        self.edge_1_2 = nn.Conv2d(32, 1, 3, padding=1)
-        self.edge_2_1 = nn.Conv2d(512, 32, 3, padding=1)
-        self.edge_2_2 = nn.Conv2d(32, 1, 3, padding=1)
-        self.edge_3_1 = nn.Conv2d(1024, 32, 3, padding=1)
-        self.edge_3_2 = nn.Conv2d(32, 1, 3, padding=1)
+        self.edge_0_1 = nn.Conv2d(64, 8, 3, padding=1)
+        self.edge_0_2 = nn.Conv2d(8, 1, 3, padding=1)
+        self.edge_1_1 = nn.Conv2d(256, 8, 3, padding=1)
+        self.edge_1_2 = nn.Conv2d(8, 1, 3, padding=1)
+        self.edge_2_1 = nn.Conv2d(512, 8, 3, padding=1)
+        self.edge_2_2 = nn.Conv2d(8, 1, 3, padding=1)
+        self.edge_3_1 = nn.Conv2d(1024, 8, 3, padding=1)
+        self.edge_3_2 = nn.Conv2d(8, 1, 3, padding=1)
 
         # region
         self.region_0 = nn.Sequential(
             nn.Conv2d(64, 64, kernel_size=8, stride=8),
             nn.ReLU(inplace=True),
-            nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(64, 8, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
-            nn.Conv2d(32, 1, kernel_size=1)
+            nn.Conv2d(8, 1, kernel_size=1)
         )
         self.region_1 = nn.Sequential(
             nn.Conv2d(256, 64, kernel_size=4, stride=4),
             nn.ReLU(inplace=True),
-            nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(64, 8, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
-            nn.Conv2d(32, 1, kernel_size=1)
+            nn.Conv2d(8, 1, kernel_size=1)
         )
         self.region_2 = nn.Sequential(
             nn.Conv2d(512, 64, kernel_size=2, stride=2),
             nn.ReLU(inplace=True),
-            nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(64, 8, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
-            nn.Conv2d(32, 1, kernel_size=1)
+            nn.Conv2d(8, 1, kernel_size=1)
         )
         self.region_3 = nn.Sequential(
             nn.Conv2d(1024, 64, kernel_size=1, stride=1),
             nn.ReLU(inplace=True),
-            nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(64, 8, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
-            nn.Conv2d(32, 1, kernel_size=1)
+            nn.Conv2d(8, 1, kernel_size=1)
         )
 
         self.relu = nn.ReLU(inplace=True)

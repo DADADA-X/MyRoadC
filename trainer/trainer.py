@@ -1051,15 +1051,10 @@ class XGTrainer(BaseTrainer):
                 self.train_metrics_direct.update(met.__name__ + '_direct', met(output_d, mask))
 
             if batch_idx % self.log_step == 0:
-                self.logger.info('Train Epoch: {} {} Total_Loss: {:.6f} Loss_Mask: {:.6f} '
-                                 'Loss_Edge: {:.6f} Loss_Region: {:.6f} Loss_Direct: {:.6f}'.format(
+                self.logger.info('Train Epoch: {} {} Loss_Mask: {:.6f}'.format(
                     epoch,
                     self._progress(batch_idx, self.data_loader),
-                    loss_total.item(),
-                    loss_mask.item(),
-                    loss_edge.item(),
-                    loss_region.item(),
-                    loss_direct.item()
+                    loss_mask.item()
                 ))
 
         log_mask = self.train_metrics_mask.result()  # average
@@ -1110,15 +1105,10 @@ class XGTrainer(BaseTrainer):
                 for met in self.metric_ftns_direct:
                     self.valid_metrics_direct.update(met.__name__ + '_direct', met(output_d, mask))
 
-                self.logger.info('Valid Epoch: {} {} Total_Loss: {:.6f} Loss_Mask: {:.6f} '
-                                 'Loss_Edge: {:.6f} Loss_Region: {:.6f} Loss_Direct: {:.6f}'.format(
+                self.logger.info('Valid Epoch: {} {}Loss_Mask: {:.6f}'.format(
                     epoch,
                     self._progress(batch_idx, self.valid_data_loader),
-                    loss_total.item(),
-                    loss_mask.item(),
-                    loss_edge.item(),
-                    loss_region.item(),
-                    loss_direct.item()))
+                    loss_mask.item()))
 
         for name, p in self.model.named_parameters():
             self.writer.add_histogram(name, p, bins='auto')

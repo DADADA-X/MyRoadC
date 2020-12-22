@@ -248,11 +248,11 @@ def masks_to_csv(root, ratio=1):
     lstrs = lstrs.drop_duplicates()
 
     out_root = Path('./solutions')
-    if 'test' in root.parts:
-        out_file = out_root / root.parts[root.parts.index('test')-1] /'lstrs_prop_sn.csv'
+    if 'test' in root.parts and root.name != 'masks':
+        out_file = out_root / root.parts[root.parts.index('test')-1] /'lstrs_prop.csv'
         Path.mkdir(out_file.parent, parents=True, exist_ok=True)
     elif 'masks' in root.name:
-        out_file = out_root / 'lstrs_gt_sn.csv'
+        out_file = out_root / 'lstrs_gt.csv'
         Path.mkdir(out_root, parents=True, exist_ok=True)
     else:
         out_file = out_root / 'test.csv'

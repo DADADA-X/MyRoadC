@@ -109,7 +109,7 @@ class RandomCrop2:
         left_2 = left // 2
         top_4 = top // 4
         left_4 = left // 4
-        top_16 = top // 164
+        top_16 = top // 16
         left_16 = left // 16
 
         for k in sample.keys():

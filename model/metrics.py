@@ -28,11 +28,11 @@ def rIoU(pred, gt):
     return miou[1]
 
 
-def IoU(pred, gt):
+def IoU(pred, gt, thre=0.5):
     with torch.no_grad():
         b, c, h, w = pred.shape
         if c == 1:
-            pred_ = pred.sigmoid().cpu().numpy() > 0.5
+            pred_ = pred.sigmoid().cpu().numpy() > thre
         else:
             pred_ = torch.argmax(pred, dim=1).cpu().numpy()[:, np.newaxis, :, :] > 0
         gt_ = gt.cpu().numpy()
@@ -45,11 +45,11 @@ def IoU(pred, gt):
     return iou_score
 
 
-def relaxed_IoU(pred, gt):
+def relaxed_IoU(pred, gt, thre=0.5):
     with torch.no_grad():
         b, c, h, w = pred.shape
         if c == 1:
-            pred_ = pred.sigmoid().cpu().numpy() > 0.5
+            pred_ = pred.sigmoid().cpu().numpy() > thre
         else:
             pred_ = torch.argmax(pred, dim=1).cpu().numpy()[:, np.newaxis, :, :] > 0
         gt_ = gt.cpu().numpy()

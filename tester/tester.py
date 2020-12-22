@@ -260,9 +260,6 @@ class HGMTLEval(BaseEval):
                 mask = mask.to(self.device)
                 conn = conn.to(self.device)
 
-                if image_name[0] == 'RGB-PanSharpen_AOI_2_Vegas_img100_2':
-                    print('lalala')
-
                 output1, output2 = self.model(image)
 
                 # save smple images
@@ -287,18 +284,19 @@ class HGMTLEval(BaseEval):
                 # plt.show()
 
                 # stat conn
-                a.extend(Counter(prob_c_.flatten()).keys())
+                # a.extend(Counter(prob_c_.flatten()).keys())
 
-                cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
+                # cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
                 # cv2.imwrite(str(self.output_dir / "conn" / (image_name[0] + '.png')), prob_m_)
 
                 self.total_loss_mask += self.criterion_mask(output1[-1], mask)
                 self.total_loss_conn += self.criterion_conn(output2[-1], conn)
                 for i, metric in enumerate(self.metric_ftns_mask):
                     self.total_metrics_mask[i] += metric(output1[-1], mask)
+
                 self.total_metrics_conn += self.metric_ftns_conn(output2[-1], conn)
 
-        print(set(a))
+        # print(set(a))
 
         n_samples = len(self.data_loader.sampler)
         self.logger.info("loss_mask: {:.4f}".format(self.total_loss_mask.item() / n_samples))
@@ -421,7 +419,7 @@ class XGEval(BaseEval):
                 output_p, outputs_e, outputs_r, output_d = self.model(image)
 
                 # save smple images
-                prob_m = output_p.sigmoid() > 0.5  # todo
+                prob_m = output_p.sigmoid() > 0.8  # todo
                 prob_m_ = prob_m.squeeze().cpu().numpy() * 255
                 prob_m_ = np.asarray(prob_m_, dtype=np.uint8)
 
@@ -437,11 +435,11 @@ class XGEval(BaseEval):
                 # plt.show()
 
                 # save
-                # cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
+                cv2.imwrite(str(self.output_dir / (image_name[0] + '.png')), prob_m_)
 
                 self.total_loss_mask += self.criterion_mask(output_p, mask)
                 for i, metric in enumerate(self.metric_ftns_mask):
-                    self.total_metrics_mask[i] += metric(output_d, mask)
+                    self.total_metrics_mask[i] += metric(output_p, mask, thre=0.8)
 
         n_samples = len(self.data_loader.sampler)
         self.logger.info("loss_mask: {:.4f}".format(self.total_loss_mask.item() / n_samples))
