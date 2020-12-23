@@ -201,6 +201,9 @@ class HGSegmentEval(BaseEval):
                 image = image.to(self.device)
                 mask = mask.to(self.device)
 
+                if 'RGB-PanSharpen_AOI_4_Shanghai_img1057_4' in image_name:
+                    print('lalala')
+
                 outputs = self.model(image)
 
                 # save smple images
@@ -286,7 +289,7 @@ class HGMTLEval(BaseEval):
                 # stat conn
                 # a.extend(Counter(prob_c_.flatten()).keys())
 
-                # cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
+                cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
                 # cv2.imwrite(str(self.output_dir / "conn" / (image_name[0] + '.png')), prob_m_)
 
                 self.total_loss_mask += self.criterion_mask(output1[-1], mask)
@@ -528,7 +531,6 @@ class ImproveEval(BaseEval):
         self.logger.info("IoU_conn: {:.2f}%".format( self.total_metrics_conn.item() / n_samples * 100))
 
 
-# todo just for test
 # class SegmentEval(BaseEval):
 #     def __init__(self, model, config, data_loader, output_dir):
 #         super(SegmentEval, self).__init__(model, config)
@@ -545,7 +547,6 @@ class ImproveEval(BaseEval):
 #
 #     def test(self):
 #         self.model.eval()
-#         e3_ = []
 #         with torch.no_grad():
 #             for i, data in enumerate(tqdm(self.data_loader)):
 #                 image_name, image, mask = data.values()
@@ -556,11 +557,20 @@ class ImproveEval(BaseEval):
 #                     print('lalala')
 #
 #                 output, e_ = self.model(image)
-#                 e1, e2, e3, e4 = e_
+#                 e1, e2, e3 = e_
 #
-#                 # plt.imshow(torch.mean(e3, dim=1).cpu()[0])
-#                 # plt.axis('off')
-#                 # plt.savefig(str(self.output_dir / (image_name[0] + '.png')))
+#                 # fig, ax = plt.subplots(1, 3)
+#                 # ax[0].imshow(torch.mean(e1, dim=1).cpu()[0])
+#                 # ax[0].axis('off')
+#                 # ax[1].imshow(torch.mean(e2, dim=1).cpu()[0])
+#                 # ax[1].axis('off')
+#                 # ax[2].imshow(torch.mean(e3, dim=1).cpu()[0])
+#                 # ax[2].axis('off')
+#                 # plt.show()
+#                 plt.imshow(torch.mean(e2, dim=1).cpu()[0])
+#                 plt.axis('off')
+#                 # plt.show()
+#                 plt.savefig(str(self.output_dir / (image_name[0] + '.png')))
 #         n_samples = len(self.data_loader.sampler)
 #         log = {}
 #         log.update({
@@ -568,3 +578,4 @@ class ImproveEval(BaseEval):
 #         })
 #
 #         self.logger.info(log)
+

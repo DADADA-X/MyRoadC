@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
 
 from base import BaseModel
 from model.blocks import *
@@ -646,9 +647,15 @@ class MyHourglass(nn.Module):
         self.block = block
         self.hg = self._make_hour_glass(block, num_blocks, planes, depth)
 
-    def _make_residual(self, block, num_blocks, planes):
+    def _make_residual(self, block, num_blocks, planes, stride=1):
+        downsample = None
+        if stride != 1:
+            downsample = nn.Sequential(
+                conv1x1(planes * block.expansion, planes, stride),
+                nn.BatchNorm2d(planes * block.expansion))
         layers = []
-        for i in range(0, num_blocks):
+        layers.append(block(planes * block.expansion, planes, stride, downsample))
+        for i in range(1, num_blocks):
             layers.append(block(planes * block.expansion, planes))
         return nn.Sequential(*layers)
 
@@ -656,7 +663,7 @@ class MyHourglass(nn.Module):
         hg = []
         for i in range(depth):
             res = []
-            res.append(self._make_residual(block, num_blocks, planes))
+            res.append(self._make_residual(block, num_blocks, planes, stride=2))
             res.append(self._make_residual(BasicBlock, num_blocks, planes))
             if i == 0:
                 res.append(self._make_residual(block, num_blocks, planes))
@@ -665,8 +672,7 @@ class MyHourglass(nn.Module):
 
     def _hour_glass_forward(self, n, x):
         up1 = x  # n order, starting from the outermost
-        low1 = F.max_pool2d(x, 2, stride=2)
-        low1 = self.hg[n - 1][0](low1)
+        low1 = self.hg[n - 1][0](x)
 
         if n > 1:
             low2 = self._hour_glass_forward(n - 1, low1)
@@ -729,9 +735,8 @@ class MBHourglass(nn.Module):
 
 
 if __name__ == '__main__':
-    model = ImprovedHourglass("BasicBlock", "[2, 5]", depth=3, num_stacks=2, num_blocks=3)
-    input = torch.randn(1, 3, 512, 512)
-    out1, out2 = model(input)
+    model = MyStackHourglass("BasicBlock", "[2]", depth=3, num_stacks=2, num_blocks=3)
+    input = torch.randn(1, 3, 256, 256)
+    out = model(input)
     print(model)
-    for i in range(len(out1)):
-        print(out1[i].shape)
+    print(out[-1].shape)
