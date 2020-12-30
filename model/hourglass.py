@@ -299,7 +299,6 @@ class MHStackHourglass(BaseModel):
     def forward(self, x):
         out_1 = []
         out_2 = []
-
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)

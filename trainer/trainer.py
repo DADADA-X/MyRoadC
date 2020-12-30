@@ -584,9 +584,12 @@ class HGMTLTrainer(BaseTrainer):
 
             self.optimizer.zero_grad()
             output1, output2 = self.model(image)
-
             loss_mask = self.criterion_mask(output1[-1], mask)
+            for output in output1[:-1]:
+                loss_mask += self.criterion_mask(output, mask_4)
             loss_conn = self.criterion_conn(output2[-1], conn)
+            for output in output2[:-1]:
+                loss_conn += self.criterion_conn(output, conn_4)
 
             loss_total = loss_mask + loss_conn
             loss_total.backward()
@@ -641,9 +644,11 @@ class HGMTLTrainer(BaseTrainer):
                 output1, output2 = self.model(image)
 
                 loss_mask = self.criterion_mask(output1[-1], mask)
-
+                for output in output1[:-1]:
+                    loss_mask += self.criterion_mask(output, mask_4)
                 loss_conn = self.criterion_conn(output2[-1], conn)
-
+                for output in output2[:-1]:
+                    loss_conn += self.criterion_conn(output, conn_4)
                 loss_total = loss_mask + loss_conn
 
                 self.writer.set_step(step, 'valid')
@@ -1025,16 +1030,17 @@ class XGTrainer(BaseTrainer):
             direct = direct.to(self.device)
 
             self.optimizer.zero_grad()
-            output_p, outputs_e, outputs_r, output_d = self.model(image)
+            # output_p, outputs_e, outputs_r, output_d = self.model(image)
+            output_p = self.model(image)
             loss_mask = self.criterion_mask(output_p, mask)
-            loss_edge = torch.tensor(0.).cuda()
-            for output in outputs_e:
-                loss_edge += self.criterion_edge(output, edge)
-            loss_region = torch.tensor(0.).cuda()
-            for output in outputs_r:
-                loss_region += self.criterion_region(output, mini)
-            loss_direct = self.criterion_direct(output_d, direct)
-            loss_total = loss_mask + loss_edge + loss_region + loss_direct
+            # loss_edge = torch.tensor(0.).cuda()
+            # for output in outputs_e:
+            #     loss_edge += self.criterion_edge(output, edge)
+            # loss_region = torch.tensor(0.).cuda()
+            # for output in outputs_r:
+            #     loss_region += self.criterion_region(output, mini)
+            # loss_direct = self.criterion_direct(output_d, direct)
+            loss_total = loss_mask
 
             # loss_total.backward()
             loss_total.backward()
@@ -1043,12 +1049,12 @@ class XGTrainer(BaseTrainer):
             self.writer.set_step(step)
 
             self.train_metrics_mask.update('loss_mask', loss_mask.item())
-            self.train_metrics_direct.update('loss_direct', loss_direct.item())
+            # self.train_metrics_direct.update('loss_direct', loss_direct.item())
 
             for met in self.metric_ftns_mask:
-                self.train_metrics_mask.update(met.__name__ + '_mask', met(output_p, mask))
-            for met in self.metric_ftns_direct:
-                self.train_metrics_direct.update(met.__name__ + '_direct', met(output_d, mask))
+                self.train_metrics_mask.update(met.__name__ + '_mask', met(output_p, mask, thre=0.8))
+            # for met in self.metric_ftns_direct:
+            #     self.train_metrics_direct.update(met.__name__ + '_direct', met(output_d, mask))
 
             if batch_idx % self.log_step == 0:
                 self.logger.info('Train Epoch: {} {} Loss_Mask: {:.6f}'.format(
@@ -1063,7 +1069,7 @@ class XGTrainer(BaseTrainer):
         if self.do_validation:
             val_log = self._valid_epoch(epoch)
             log_mask.update(**{'val_' + k: v for k, v in val_log.items() if 'mask' in k})
-            log_direct.update(**{'val_' + k: v for k, v in val_log.items() if 'direct' in k})
+            # log_direct.update(**{'val_' + k: v for k, v in val_log.items() if 'direct' in k})
 
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
@@ -1084,26 +1090,22 @@ class XGTrainer(BaseTrainer):
                 mini = mini.to(self.device)
                 direct = direct.to(self.device)
 
-                output_p, outputs_e, outputs_r, output_d = self.model(image)
+                # output_p, outputs_e, outputs_r, output_d = self.model(image)
+                output_p = self.model(image)
 
                 loss_mask = self.criterion_mask(output_p, mask)
-                loss_edge = torch.tensor(0.).cuda()
-                for output in outputs_e:
-                    loss_edge += self.criterion_edge(output, edge)
-                loss_region = torch.tensor(0.).cuda()
-                for output in outputs_r:
-                    loss_region += self.criterion_region(output, mini)
-                loss_direct = self.criterion_direct(output_d, direct)
-                loss_total = loss_mask + loss_edge + loss_region + loss_direct
+                # loss_edge = torch.tensor(0.).cuda()
+                # loss_direct = self.criterion_direct(output_d, direct)
+                loss_total = loss_mask
 
                 self.writer.set_step(step, 'valid')
                 self.valid_metrics_mask.update('loss_mask', loss_mask.item())
-                self.valid_metrics_direct.update('loss_direct', loss_direct.item())
+                # self.valid_metrics_direct.update('loss_direct', loss_direct.item())
 
                 for met in self.metric_ftns_mask:
-                    self.valid_metrics_mask.update(met.__name__ + '_mask', met(output_p, mask))
-                for met in self.metric_ftns_direct:
-                    self.valid_metrics_direct.update(met.__name__ + '_direct', met(output_d, mask))
+                    self.valid_metrics_mask.update(met.__name__ + '_mask', met(output_p, mask, thre=0.8))
+                # for met in self.metric_ftns_direct:
+                #     self.valid_metrics_direct.update(met.__name__ + '_direct', met(output_d, mask))
 
                 self.logger.info('Valid Epoch: {} {}Loss_Mask: {:.6f}'.format(
                     epoch,

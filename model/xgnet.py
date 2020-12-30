@@ -287,27 +287,26 @@ class ImprovedXGNet(BaseModel):
         d0 = self.decoder0_p(d1)
         out_p = self.out_p(d0)
 
-        # edge
-        edge_0 = self.edge_0_2(self._up_sample(self.edge_0_1(e0), 2))
-        edge_1 = self.edge_1_2(self._up_sample(self.edge_1_1(e1), 4))
-        edge_2 = self.edge_2_2(self._up_sample(self.edge_2_1(e2), 8))
-        edge_3 = self.edge_3_2(self._up_sample(self.edge_3_1(e3), 16))
-        edge_fuse = self.fuse_e(torch.cat([edge_0, edge_1, edge_2, edge_3], dim=1))
+        # # edge
+        # edge_0 = self.edge_0_2(self._up_sample(self.edge_0_1(e0), 2))
+        # edge_1 = self.edge_1_2(self._up_sample(self.edge_1_1(e1), 4))
+        # edge_2 = self.edge_2_2(self._up_sample(self.edge_2_1(e2), 8))
+        # edge_3 = self.edge_3_2(self._up_sample(self.edge_3_1(e3), 16))
+        # edge_fuse = self.fuse_e(torch.cat([edge_0, edge_1, edge_2, edge_3], dim=1))
+        #
+        # # region
+        # region_0 = self.region_0(e0)
+        # region_1 = self.region_1(e1)
+        # region_2 = self.region_2(e2)
+        # region_3 = self.region_3(e3)
+        # region_fuse = self.fuse_r(torch.cat([region_0, region_1, region_2, region_3], dim=1))
+        #
+        # fuse = self.direction(torch.cat([d0, edge_0, edge_1, edge_2, edge_3, edge_fuse,
+        #                                  self._up_sample(region_0, 16), self._up_sample(region_1, 16),
+        #                                  self._up_sample(region_2, 16), self._up_sample(region_3, 16),
+        #                                  self._up_sample(region_fuse, 16)], dim=1))
 
-        # region
-        region_0 = self.region_0(e0)
-        region_1 = self.region_1(e1)
-        region_2 = self.region_2(e2)
-        region_3 = self.region_3(e3)
-        region_fuse = self.fuse_r(torch.cat([region_0, region_1, region_2, region_3], dim=1))
-
-        fuse = self.direction(torch.cat([d0, edge_0, edge_1, edge_2, edge_3, edge_fuse,
-                                         self._up_sample(region_0, 16), self._up_sample(region_1, 16),
-                                         self._up_sample(region_2, 16), self._up_sample(region_3, 16),
-                                         self._up_sample(region_fuse, 16)], dim=1))
-
-        return out_p, [edge_0, edge_1, edge_2, edge_3, edge_fuse], [region_0, region_1, region_2, region_3, region_fuse], fuse
-
+        return out_p
 
 class UpBlock(nn.Module):
     def __init__(self, inplanes, planes, stride=1):

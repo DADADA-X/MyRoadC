@@ -201,9 +201,6 @@ class HGSegmentEval(BaseEval):
                 image = image.to(self.device)
                 mask = mask.to(self.device)
 
-                if 'RGB-PanSharpen_AOI_4_Shanghai_img1057_4' in image_name:
-                    print('lalala')
-
                 outputs = self.model(image)
 
                 # save smple images
@@ -419,22 +416,19 @@ class XGEval(BaseEval):
                 mini = mini.to(self.device)
                 direct = direct.to(self.device)
 
-                output_p, outputs_e, outputs_r, output_d = self.model(image)
+                output_p = self.model(image)
 
                 # save smple images
                 prob_m = output_p.sigmoid() > 0.8  # todo
                 prob_m_ = prob_m.squeeze().cpu().numpy() * 255
                 prob_m_ = np.asarray(prob_m_, dtype=np.uint8)
 
-                prob_d = torch.argmax(output_d, dim=1) > 0
-                prob_d_ = prob_d.squeeze().cpu().numpy() * 255
-                prob_d_ = np.asarray(prob_d_, dtype=np.uint8)
-
                 # plot
-                # fig, ax = plt.subplots(1, 3)
-                # ax[0].imshow(mask.cpu().numpy()[0][0])
-                # ax[1].imshow(prob_m_)
-                # ax[2].imshow(prob_d_)
+                # fig, ax = plt.subplots(1, 4)
+                # ax[0].imshow(image.cpu().numpy()[0].transpose(1, 2, 0))
+                # ax[1].imshow(mask.cpu().numpy()[0][0])
+                # ax[2].imshow(prob_m_)
+                # ax[3].imshow(prob_d_)
                 # plt.show()
 
                 # save
