@@ -400,6 +400,100 @@ class HGSegmentTrainer(BaseTrainer):
         return base.format(current, total, 100.0 * current / total)
 
 
+class HGSegmentTrainerwo(BaseTrainer):
+    def __init__(self, model, optimizer, config, data_loader, valid_data_loader=None, lr_scheduler=None):
+        super(HGSegmentTrainerwo, self).__init__(model, optimizer, config)
+        self.data_loader = data_loader
+        self.len_epoch = len(self.data_loader)
+        self.valid_data_loader = valid_data_loader
+        self.do_validation = self.valid_data_loader is not None
+        self.lr_scheduler = lr_scheduler
+        self.log_step = 1
+        self.criterion = soft_iou_loss
+        self.metric_ftns_seg = [rIoU]
+        self.train_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns_seg],
+                                           writer=self.writer)
+        self.valid_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns_seg],
+                                           writer=self.writer)
+
+    def _train_epoch(self, epoch):
+        self.model.train()
+        self.train_metrics.reset()
+
+        for batch_idx, data in enumerate(self.data_loader):
+            step = (epoch - 1) * self.len_epoch + batch_idx
+            image_name, image, mask, mask_4 = data.values()
+            image = image.to(self.device)
+            mask = mask.to(self.device)
+            mask_4 = mask_4.to(self.device)
+
+            self.optimizer.zero_grad()
+            outputs = self.model(image)
+
+            loss = self.criterion(outputs[-1], mask)
+            # for output in outputs[:-1]:
+            #     loss += self.criterion(output, mask_4)
+            loss.backward()
+            self.optimizer.step()
+
+            self.writer.set_step(step)
+            self.train_metrics.update('loss', loss.item())
+            for met in self.metric_ftns_seg:
+                self.train_metrics.update(met.__name__, met(outputs[-1], mask))
+
+            if batch_idx % self.log_step == 0:
+                self.logger.info('Train Epoch: {} {} Loss: {:.6f}'.format(
+                    epoch,
+                    self._progress(batch_idx, self.data_loader),
+                    loss.item()))
+
+        log = self.train_metrics.result()
+
+        if self.do_validation:
+            val_log = self._valid_epoch(epoch)
+            log.update(**{'val_' + k: v for k, v in val_log.items()})
+
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.step()
+        return log
+
+    def _valid_epoch(self, epoch):
+        self.model.eval()
+        self.valid_metrics.reset()
+        with torch.no_grad():
+            for batch_idx, data in enumerate(self.valid_data_loader):
+                step = (epoch - 1) * len(self.valid_data_loader) + batch_idx
+                image_name, image, mask, mask_4 = data.values()
+                image = image.to(self.device)
+                mask = mask.to(self.device)
+                mask_4 = mask_4.to(self.device)
+
+                outputs = self.model(image)
+                loss = self.criterion(outputs[-1], mask)
+                # for output in outputs[:-1]:
+                #     loss += self.criterion(output, mask_4)
+
+                self.writer.set_step(step, 'valid')
+                self.valid_metrics.update('loss', loss.item())
+                for met in self.metric_ftns_seg:
+                    self.valid_metrics.update(met.__name__, met(outputs[-1], mask))
+
+                self.logger.info('Valid Epoch: {} {} Loss: {:.6f}'.format(
+                    epoch,
+                    self._progress(batch_idx, self.valid_data_loader),
+                    loss.item()))
+
+        for name, p in self.model.named_parameters():
+            self.writer.add_histogram(name, p, bins='auto')
+        return self.valid_metrics.result()
+
+    def _progress(self, batch_idx, data_loader):
+        base = '[{:2d}/{:2d} ({:2.0f}%)]'
+        current = batch_idx * data_loader.batch_size
+        total = data_loader.n_samples
+        return base.format(current, total, 100.0 * current / total)
+
+
 # class HGMTLTrainer(BaseTrainer):
 #     def __init__(self, model, optimizer, config, data_loader, valid_data_loader=None, lr_scheduler=None):
 #         super(HGMTLTrainer, self).__init__(model, optimizer, config)
