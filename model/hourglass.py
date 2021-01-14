@@ -641,6 +641,138 @@ class ImproveHourglass(BaseModel):
         return out_1, out_2
 
 
+class ImproveHourglass_4(BaseModel):
+    def __init__(self, block, heads, depth, num_stacks, num_blocks):
+        super(ImproveHourglass_4, self).__init__()
+        self.inplanes = 64  # keep updating
+        self.num_feats = 128
+        self.block = eval(block)
+        self.heads = eval(heads)
+        self.num_stacks = num_stacks
+
+        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3)
+        self.bn1 = nn.BatchNorm2d(self.inplanes)
+        self.relu = nn.ReLU(inplace=True)
+        self.layer1 = self._make_residual(self.block, self.inplanes, 1)  # self.inplanes as plane in the function
+        self.layer2 = self._make_residual(self.block, self.inplanes, 1)
+        self.layer3 = self._make_residual(self.block, self.num_feats, 1)
+        self.maxpool = nn.MaxPool2d(2, stride=2)
+
+        # build hourglass modules
+        ch = self.num_feats * self.block.expansion  # 256
+        hg = []
+        res_1, fc_1, score_1, fc_1_, score_1_ = [], [], [], [], []
+        res_2, fc_2, score_2, fc_2_, score_2_ = [], [], [], [], []
+        for i in range(self.num_stacks):  # number of stacked-hourglass
+            hg.append(MBHourglass(self.block, num_blocks, self.num_feats, depth))
+
+            res_1.append(self._make_residual(self.block, self.num_feats, num_blocks))
+            res_2.append(self._make_residual(self.block, self.num_feats, num_blocks))
+
+            fc_1.append(self._make_fc(ch, ch))
+            fc_2.append(self._make_fc(ch, ch))
+
+            score_1.append(nn.Conv2d(ch, self.heads[0], kernel_size=1))
+            score_2.append(nn.Conv2d(ch, self.heads[1], kernel_size=1))
+
+            if i < num_stacks - 1:
+                fc_1_.append(nn.Conv2d(ch, ch, kernel_size=1))
+                fc_2_.append(nn.Conv2d(ch, ch, kernel_size=1))
+                score_1_.append(nn.Conv2d(self.heads[0], ch, kernel_size=1))
+                score_2_.append(nn.Conv2d(self.heads[1], ch, kernel_size=1))
+
+        self.hg = nn.ModuleList(hg)
+
+        self.res_1 = nn.ModuleList(res_1)
+        self.fc_1 = nn.ModuleList(fc_1)
+        self.score_1 = nn.ModuleList(score_1)
+        self.fc_1_ = nn.ModuleList(fc_1_)
+        self.score_1_ = nn.ModuleList(score_1_)
+
+        self.res_2 = nn.ModuleList(res_2)
+        self.fc_2 = nn.ModuleList(fc_2)
+        self.score_2 = nn.ModuleList(score_2)
+        self.fc_2_ = nn.ModuleList(fc_2_)
+        self.score_2_ = nn.ModuleList(score_2_)
+
+        self.decoder1 = DecoderBlock(self.num_feats, self.inplanes, stride=2)
+        self.decoder1_out = nn.Conv2d(self.inplanes, self.heads[0], kernel_size=1)
+
+        self.decoder2 = DecoderBlock(self.num_feats, self.inplanes, stride=2)
+        self.decoder2_out = nn.Conv2d(self.inplanes, self.heads[1], kernel_size=1)
+
+        self.finalcls_1 = self._make_head(ch, self.heads[0])
+        self.finalcls_2 = self._make_head(ch, self.heads[1])
+
+    def _make_residual(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes, planes * block.expansion,
+                          kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(planes * block.expansion)
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def _make_fc(self, inplanes, planes):
+        conv = nn.Conv2d(inplanes, planes, kernel_size=1)
+        bn = nn.BatchNorm2d(planes)
+        return nn.Sequential(conv, bn, self.relu)
+
+    def _make_head(self, inplanes, planes):
+        return nn.Sequential(
+            nn.ConvTranspose2d(inplanes, 32, kernel_size=3, stride=2),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(32, 32, kernel_size=3),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(32, planes, kernel_size=2, padding=1)
+        )
+
+    def forward(self, x):
+        out_1 = []
+        out_2 = []
+
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+
+        x = self.layer1(x)
+        x = self.maxpool(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+
+        for i in range(self.num_stacks):
+            y1, y2 = self.hg[i](x)
+            y1, y2 = self.res_1[i](y1), self.res_2[i](y2)
+            y1, y2 = self.fc_1[i](y1), self.fc_2[i](y2)
+            score_1, score_2 = self.score_1[i](y1), self.score_2[i](y2)
+
+            out_1.append(score_1)
+            out_2.append(score_2)
+
+            if i < self.num_stacks - 1:
+                fc_1_, fc_2_ = self.fc_1_[i](y1), self.fc_2_[i](y2)
+                score_1_, score_2_ = self.score_1_[i](score_1), self.score_2_[i](score_2)
+                x = x + fc_1_ + score_1_ + fc_2_ + score_2_
+
+        d1 = self.decoder1(y1)
+        # out_1.append(self.decoder1_out(d1))
+        out_1.append(self.finalcls_1(d1))
+
+        d2 = self.decoder2(y2)
+        # out_2.append(self.decoder2_out(d2))
+        out_2.append(self.finalcls_2(d2))
+
+        return out_1, out_2
+
+
 class Hourglass(nn.Module):
     def __init__(self, block, num_blocks, planes, depth):
         super(Hourglass, self).__init__()
@@ -732,7 +864,7 @@ class MBHourglass(nn.Module):
 
 
 if __name__ == '__main__':
-    model = MHStackHourglass_2("BasicBlock", "[2, 5]", depth=3, num_stacks=2, num_blocks=3)
+    model = ImproveHourglass_4("BasicBlock", "[2, 5]", depth=3, num_stacks=2, num_blocks=3)
     input = torch.randn(1, 3, 256, 256)
     out = model(input)
     print(model)
