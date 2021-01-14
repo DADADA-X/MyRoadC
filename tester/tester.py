@@ -286,15 +286,15 @@ class HGMTLEval(BaseEval):
                 # stat conn
                 # a.extend(Counter(prob_c_.flatten()).keys())
 
-                cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
-                # cv2.imwrite(str(self.output_dir / "conn" / (image_name[0] + '.png')), prob_m_)
+                # cv2.imwrite(str(self.output_dir / "mask" / (image_name[0] + '.png')), prob_m_)
+                cv2.imwrite(str(self.output_dir / "conn" / (image_name[0] + '.png')), prob_c_)
 
-                self.total_loss_mask += self.criterion_mask(output1[-1], mask)
-                self.total_loss_conn += self.criterion_conn(output2[-1], conn)
-                for i, metric in enumerate(self.metric_ftns_mask):
-                    self.total_metrics_mask[i] += metric(output1[-1], mask)
-
-                self.total_metrics_conn += self.metric_ftns_conn(output2[-1], conn)
+                # self.total_loss_mask += self.criterion_mask(output1[-1], mask)
+                # self.total_loss_conn += self.criterion_conn(output2[-1], conn)
+                # for i, metric in enumerate(self.metric_ftns_mask):
+                #     self.total_metrics_mask[i] += metric(output1[-1], mask)
+                #
+                # self.total_metrics_conn += self.metric_ftns_conn(output2[-1], conn)
 
         # print(set(a))
 
