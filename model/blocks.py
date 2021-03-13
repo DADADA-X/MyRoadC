@@ -231,18 +231,3 @@ class GALayer(nn.Module):
         return sa_out
 
 
-class SELayer(nn.Module):
-    def __init__(self, channel, ratio=16):
-        super(SELayer, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.ca = nn.Sequential(
-            nn.Conv2d(channel, channel // ratio, kernel_size=1, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(channel // ratio, channel, kernel_size=1, bias=False),
-            nn.Sigmoid())
-
-    def forward(self, x):
-        u = self.ca(self.avg_pool(x))
-        ca_out = x * u
-
-        return ca_out
